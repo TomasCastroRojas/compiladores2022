@@ -1,3 +1,23 @@
+
+En parse.hs:
+ 	modificado SLam parar que tenga lista de bindings en lugar de un binding solo. Modif pprint y elab
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use <$>" #-}
 {-|
@@ -127,19 +147,38 @@ binding = do v <- var
              ty <- typeP
              return (v, ty)
 
-binders :: P [(Name, Ty)]
-binders = do 
-  lst <- many1 $ (parens binding <|> binding)
-  return lst
-
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
-         bnds <- binders
+         (v,ty) <- parens binding
          reservedOp "->"
          t <- expr
-         return (SLam i bnds t)
+         return (SLam i (v,ty) t)
 
+
+lam_many_arg :: P STerm
+lam_many_arg = do
+  i <- getPos
+  reserved "fun"
+  lst <- many1 $ parens binding
+  reservedOp "->"
+  t <- expr 
+  return $ lam_many_arg_aux i lst t
+  -- let types = lam_build_type lst 
+  -- return $ lam_many_arg_aux i types lst t
+
+lam_many_arg_aux :: Pos -> [(Name, Ty)] -> STerm -> STerm
+lam_many_arg_aux i [v1] t = (SLam i v1 t)
+lam_many_arg_aux i ((x, y) : tl) t = (SLam i p (lam_many_arg_aux i tl t))
+
+-- lam_many_arg_aux :: Pos -> Ty -> [(Name, Ty)] -> STerm -> STerm
+-- lam_many_arg_aux i ty [(v, _)] t = (SLam i (v, ty) t)
+-- lam_many_arg_aux i ty@(FunTy t1 t2) ((x, y) : tl) t = (SLam i (x,ty) (lam_many_arg_aux i t2 tl t))
+
+
+lam_build_type :: [(Name, Ty)] -> Ty
+lam_build_type [(x, t1), (y, t2)] = (FunTy t1 t2)
+lam_build_type ((x, t1) : tl) = (FunTy t1 (lam_build_type tl))
 
 
 -- Nota el parser app también parsea un solo atom.
@@ -168,6 +207,18 @@ fix = do i <- getPos
          t <- expr
          return (SFix i (f,fty) (x,xty) t)
 
+fix_many_arg :: P STerm
+fix_many_arg = do
+  i <- getPos
+  reserved "fix"
+  (f, fty) <- parens binding
+  args@(x : tl) <- many $ parens binding
+  reservedOp "->"
+  t <- expr
+  let types = lam_build_type args
+  let body = lam_many_arg_aux i types args t
+  return $ (SFix i (f, fty) x body)
+
 
 letexp :: P STerm
 letexp = do
@@ -179,27 +230,44 @@ letexp = do
   reserved "in"
   body <- expr
   return (SLet i (v,ty) def body)
-  
-letexpFun :: P STerm
-letexpFun = do
+
+
+letexp_1 :: P STerm
+letexp_1 = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
-  reservedOp ":"
-  retType <- tyatom
-  reservedOp "="  
+  (v, ty) <- binding
+  reservedOp "="
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i (v,ty) (SLam) body)
+  return (SLet i (v, ty) def body)
+
+letexp_fun_1 :: P STerm
+letexp_fun_1 = do
+  i <- getPos
+  reserved "let"
+  funName <- var
+  (v, ty) <- parens binding
+  reservedOp ":"
+  returnType <- tyatom
+  reservedOp "="
+  def <- expr
+  reserved "in"
+  body <- expr
+  return (SLet i (funName, (FunTy ty returnType)) 
+    (SLam i (v, ty) def)
+    body)
 
 
 
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
+tm = app <|> try lam <|> lam_many_arg <|> ifz <|> printOp <|> try fix <|> fix_many_arg <|> try tm_let
 
+tm_let :: P STerm
+tm_let = try letexp <|> try letexp_1 -- <|> try letexp_fun_1
 
 -- | Parser de declaraciones
 decl :: P (Decl STerm)
@@ -229,3 +297,4 @@ parse :: String -> STerm
 parse s = case runP expr s "" of
             Right t -> t
             Left e -> error ("no parse: " ++ show s)
+

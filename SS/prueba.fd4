@@ -1,0 +1,14 @@
+fun (x:Nat) (y:Nat) -> x + y
+
+let x:Nat = 4 in x
+
+let f (y:Nat):Nat = y +1 in f 5
+
+fix (mul:Nat ->Nat->Nat) (m:Nat) -> fun (n:Nat) -> ifz n then 0 else m+1
+
+
+fix (mul:Nat ->Nat->Nat) (m:Nat) (n:Nat) -> ifz n then 0 else m+1
+
+
+fun (m:Nat)(n:nat) -> m+n
+
