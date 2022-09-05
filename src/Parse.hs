@@ -82,16 +82,16 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P Ty
-tyatom = (reserved "Nat" >> return NatTy)
+tyatom :: P STy
+tyatom = (reserved "Nat" >> return SNatTy)
          <|> parens typeP
 
-typeP :: P Ty
+typeP :: P STy
 typeP = try (do 
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunTy x y))
+          return (SFunTy x y))
       <|> tyatom
           
 const :: P Const
@@ -102,8 +102,10 @@ printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  a <- atom
-  return (SPrint i str a)
+  ( do  a <- atom
+        return (SPrint i str a)
+    <|> return (SLam i [("x", SNatTy)] (SPrint i str (SV i "x")))) 
+
 
 binary :: String -> BinaryOp -> Assoc -> Operator String () Identity STerm
 binary s f = Ex.Infix (reservedOp s >> return (SBinaryOp NoPos f))
@@ -122,13 +124,13 @@ atom =     (flip SConst <$> const <*> getPos)
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P (Name, Ty)
+binding :: P (Name, STy)
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
              return (v, ty)
 
-binders :: P [(Name, Ty)]
+binders :: P [(Name, STy)]
 binders = do 
   lst <- many1 $ (parens binding <|> binding)
   return lst
@@ -198,20 +200,20 @@ letexpFun = do
 
 -- parsea algo de la forma
 -- f (x1:T1) ... (nx:Tn) : Tr
-parse_func :: P (Name, [(Name, Ty)], Ty)
+parse_func :: P (Name, [(Name, STy)], STy)
 parse_func = do
   name <- var
   args <- many $ (parens binding) <|> binding
   reservedOp ":"
-  retType <- tyatom
+  retType <- typeP
   return (name, args, retType)
 
 
 -- toma una lista con lista de argumentos de una función y sus tipos
 -- y el tipo que retorna una función y crea el tipo de la función
-buildFunTy :: [(Name, Ty)] -> Ty -> Ty
+buildFunTy :: [(Name, STy)] -> STy -> STy
 buildFunTy [] retType = retType
-buildFunTy ((x, xty):tl) retType = (FunTy xty (buildFunTy tl retType))
+buildFunTy ((x, xty):tl) retType = (SFunTy xty (buildFunTy tl retType))
 
 
 letrecexp :: P STerm
@@ -231,7 +233,7 @@ letrecexp = do
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix  <|> try letexpFun <|> try letexp <|> letrecexp
+tm = app <|> lam <|> ifz <|> printOp <|> fix  <|> try letexpFun <|> (try letexp <|> letrecexp)
 
 
 
@@ -239,10 +241,10 @@ decl_let :: P (SDecl STerm)
 decl_let = do
   i <- getPos
   reservedOp "let"
-  (x, xty) <- binding
+  (x, xty) <- parens binding <|> binding
   reservedOp "="
   body <- expr
-  return $ SDecl False i x {-- (buildFunTy lst retType) --} body
+  return $ SDecl  i x body
 
 decl_letfun :: P (SDecl STerm)
 decl_letfun = do 
@@ -251,7 +253,7 @@ decl_letfun = do
   (name, lst@((v, ty):tl), retType) <- parse_func
   reservedOp "="
   body <- expr
-  return $ SDecl False i name {-- (buildFunTy lst retType) --} body
+  return $ SDecl  i name body
 
 
 decl_letrec :: P (SDecl STerm)
@@ -262,21 +264,21 @@ decl_letrec = do
   (name, lst@((v, ty):tl), retType) <- parse_func
   reservedOp "=" 
   body <- expr
-  return $ SDecl False i name {-- (buildFunTy lst retType) --} body
+  return $ SDecl i name body
 
 
--- decl_typeDef :: P (De)
--- decl_typeDef = do
---   i <- getPos
---   reservedOp "type"
---   n <- var
---   ty <- typeP
---   let (glb GlEnv) = (glb GlEnv) ++ [(n, ty)]
---   return ()
+decl_typeDef :: P (SDecl STerm)
+decl_typeDef = do
+  i <- getPos
+  reservedOp "type"
+  n <- var
+  reservedOp "="
+  ty <- typeP
+  return (SDeclTy i n ty)
 
 -- | Parser de declaraciones
 decl :: P (SDecl STerm)
-decl = try decl_letfun <|> try decl_letrec <|> decl_let
+decl = decl_letfun <|> decl_letrec <|> decl_let
 
 
 -- | Parser de programas (listas de declaraciones) 

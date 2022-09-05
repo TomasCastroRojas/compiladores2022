@@ -32,6 +32,7 @@ data STm info ty var =
 
   | SApp info (STm info ty var) (STm info ty var)
   | SPrint info String (STm info ty var)
+  | SPrintU info String
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
 
   | SFix info (var, ty) [(var, ty)] (STm info ty var)
@@ -45,11 +46,18 @@ data STm info ty var =
 data Ty =
       NatTy
     | FunTy Ty Ty
+    | VarTy Name Ty
     deriving (Show,Eq)
+
+data STy =
+  SNatTy
+  | SFunTy STy STy
+  | SNameTy Name
+  deriving (Show, Eq)
 
 type Name = String
 
-type STerm = STm Pos Ty Name -- ^ 'STm' tiene 'Name's como variables ligadas y libres y globales, guarda posición  
+type STerm = STm Pos STy Name -- ^ 'STm' tiene 'Name's como variables ligadas y libres y globales, guarda posición  
 
 newtype Const = CNat Int
   deriving Show
@@ -59,10 +67,14 @@ data BinaryOp = Add | Sub
 
 
 data SDecl a = SDecl
-  { sDIsTypeDef :: Bool
-  , sDeclPos   :: Pos
+  { sDeclPos   :: Pos
   , sDeclName  :: Name
   , sDeclBody  :: a
+  } 
+  | SDeclTy 
+  { sDeclPos   :: Pos
+  , sDeclName  :: Name
+  , sDeclType  :: STy
   }
 
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
