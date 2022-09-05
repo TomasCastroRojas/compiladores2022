@@ -27,13 +27,18 @@ import           Data.List.Extra                ( nubSort )
 data STm info ty var =
     SV info var
   | SConst info Const
+
   | SLam info [(var, ty)] (STm info ty var)
+
   | SApp info (STm info ty var) (STm info ty var)
   | SPrint info String (STm info ty var)
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
-  | SFix info (var, ty) (var, ty) (STm info ty var)
+
+  | SFix info (var, ty) [(var, ty)] (STm info ty var)
+
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
-  | SLet info (var, ty) (STm info ty var) (STm info ty var)
+
+  | SLet Bool info [(var, ty)] (STm info ty var) (STm info ty var)
   deriving (Show, Functor)
 
 -- | AST de Tipos
@@ -51,6 +56,14 @@ newtype Const = CNat Int
 
 data BinaryOp = Add | Sub
   deriving Show
+
+
+data SDecl a = SDecl
+  { sDIsTypeDef :: Bool
+  , sDeclPos   :: Pos
+  , sDeclName  :: Name
+  , sDeclBody  :: a
+  }
 
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a = Decl

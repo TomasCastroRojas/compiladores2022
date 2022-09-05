@@ -14,6 +14,7 @@ module Parse (tm, Parse.parse, decl, runP, P, program, declOrTm) where
 
 import Prelude hiding ( const )
 import Lang hiding (getPos)
+import Global
 import Common
 import Text.Parsec hiding (runP,parse)
 --import Data.Char ( isNumber, ord )
@@ -163,61 +164,128 @@ fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
          (f, fty) <- parens binding
-         (x, xty) <- parens binding
+         args <- many $ (parens binding) <|> binding
          reservedOp "->"
          t <- expr
-         return (SFix i (f,fty) (x,xty) t)
+         return (SFix i (f,fty) args t)
 
 
 letexp :: P STerm
 letexp = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
+  (v,ty) <- (parens binding <|> binding)
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i (v,ty) def body)
+  return (SLet False i [(v,ty)] def body)
+
+
   
 letexpFun :: P STerm
 letexpFun = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
-  reservedOp ":"
-  retType <- tyatom
-  reservedOp "="  
+  (name, lst@((v, ty):tl), retType) <- parse_func
+  reservedOp "=" 
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i (v,ty) (SLam) body)
+  return (SLet False i ([(name, buildFunTy lst retType)] ++ lst) def body)
+
+
+
+-- parsea algo de la forma
+-- f (x1:T1) ... (nx:Tn) : Tr
+parse_func :: P (Name, [(Name, Ty)], Ty)
+parse_func = do
+  name <- var
+  args <- many $ (parens binding) <|> binding
+  reservedOp ":"
+  retType <- tyatom
+  return (name, args, retType)
+
+
+-- toma una lista con lista de argumentos de una función y sus tipos
+-- y el tipo que retorna una función y crea el tipo de la función
+buildFunTy :: [(Name, Ty)] -> Ty -> Ty
+buildFunTy [] retType = retType
+buildFunTy ((x, xty):tl) retType = (FunTy xty (buildFunTy tl retType))
+
+
+letrecexp :: P STerm
+letrecexp = do
+  i <- getPos
+  reservedOp "let"
+  reservedOp "rec"
+  (name, lst@((v, ty):tl), retType) <- parse_func
+  reservedOp "=" 
+  def <- expr
+  reserved "in"
+  body <- expr
+  return (SLet True i ([(name, buildFunTy lst retType)] ++ lst) def body)
 
 
 
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
+tm = app <|> lam <|> ifz <|> printOp <|> fix  <|> try letexpFun <|> try letexp <|> letrecexp
 
+
+
+decl_let :: P (SDecl STerm)
+decl_let = do
+  i <- getPos
+  reservedOp "let"
+  (x, xty) <- binding
+  reservedOp "="
+  body <- expr
+  return $ SDecl False i x {-- (buildFunTy lst retType) --} body
+
+decl_letfun :: P (SDecl STerm)
+decl_letfun = do 
+  i <- getPos
+  reservedOp "let"
+  (name, lst@((v, ty):tl), retType) <- parse_func
+  reservedOp "="
+  body <- expr
+  return $ SDecl False i name {-- (buildFunTy lst retType) --} body
+
+
+decl_letrec :: P (SDecl STerm)
+decl_letrec = do 
+  i <- getPos
+  reservedOp "let"
+  reservedOp "rec"
+  (name, lst@((v, ty):tl), retType) <- parse_func
+  reservedOp "=" 
+  body <- expr
+  return $ SDecl False i name {-- (buildFunTy lst retType) --} body
+
+
+-- decl_typeDef :: P (De)
+-- decl_typeDef = do
+--   i <- getPos
+--   reservedOp "type"
+--   n <- var
+--   ty <- typeP
+--   let (glb GlEnv) = (glb GlEnv) ++ [(n, ty)]
+--   return ()
 
 -- | Parser de declaraciones
-decl :: P (Decl STerm)
-decl = do 
-     i <- getPos
-     reserved "let"
-     v <- var
-     reservedOp "="
-     t <- expr
-     return (Decl i v t)
+decl :: P (SDecl STerm)
+decl = try decl_letfun <|> try decl_letrec <|> decl_let
+
 
 -- | Parser de programas (listas de declaraciones) 
-program :: P [Decl STerm]
+program :: P [SDecl STerm]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl STerm) STerm)
+declOrTm :: P (Either (SDecl STerm) STerm)
 declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada

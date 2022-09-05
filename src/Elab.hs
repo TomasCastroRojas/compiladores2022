@@ -29,9 +29,18 @@ elab' env (SV p v) =
     else V p (Global v)
 
 elab' _ (SConst p c) = Const p c
+
+
 elab' env (SLam p [] t) = elab' env t
 elab' env (SLam p ((v,ty):tl) t) = Lam p v ty (close v (elab' (v:env) (SLam p tl t)))
-elab' env (SFix p (f,fty) (x,xty) t) = Fix p f fty x xty (close2 f x (elab' (x:f:env) t))
+
+
+
+elab' env (SFix p (f,fty) [(x,xty)] t) = Fix p f fty x xty (close2 f x (elab' (x:f:env) t))
+elab' env (SFix p (f, fty) ((x, xty):tl) t) = Fix p f fty x xty (close2 f x (elab' (x:f:env) (SLam p tl t))) 
+
+
+
 elab' env (SIfZ p c t e)         = IfZ p (elab' env c) (elab' env t) (elab' env e)
 -- Operadores binarios
 elab' env (SBinaryOp i o t u) = BinaryOp i o (elab' env t) (elab' env u)
@@ -39,8 +48,31 @@ elab' env (SBinaryOp i o t u) = BinaryOp i o (elab' env t) (elab' env u)
 elab' env (SPrint i str t) = Print i str (elab' env t)
 -- Aplicaciones generales
 elab' env (SApp p h a) = App p (elab' env h) (elab' env a)
-elab' env (SLet p (v,vty) def body) =  
+
+
+elab' env (SLet False p [(v,vty)] def body) =  
   Let p v vty (elab' env def) (close v (elab' (v:env) body))
 
-elabDecl :: Decl STerm -> Decl Term
-elabDecl = fmap elab
+-- elab' env (SLet False p ((f,fty):tl) def body) =  
+--   Let p f fty (elab' env def) (close f (elab' (f:env) (SLam p tl body)))
+
+elab' env (SLet False p ((f,fty):tl) def body) =  
+  Let p f fty (elab' env (SLam p tl def)) (close f (elab' (f:env) body))
+
+
+-- elab' env (SLet p True [(v,vty)] def body) =  
+--   Let p v vty (elab' env def) (close v (elab' (v:env) body))
+
+elab' env (SLet True p ((f,fty):tl) def body) =  
+  Let p f fty (elab' env def) (close f (elab' (f:env) (SFix p (f, fty) tl body)))
+
+-- elabDecl :: Decl STerm -> Decl Term
+-- elabDecl = fmap elab
+
+elabDecl :: SDecl STerm -> Decl Term
+elabDecl d@(SDecl True pos name body) = 
+  let term = elab body
+  in Decl pos name term
+elabDecl d@(SDecl False pos name body) = 
+  let term = elab body
+  in Decl pos name term

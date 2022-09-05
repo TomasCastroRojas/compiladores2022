@@ -1,3 +1,5 @@
+(fix (mul:Nat->Nat->Nat) (m:Nat) (n:Nat) -> ifz m then 0 else n + (mul (m-1) n)) 16 8
+
 fun (x:Nat) (y:Nat) -> x + y
 
 let x:Nat = 4 in x
