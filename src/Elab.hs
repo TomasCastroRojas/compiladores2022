@@ -10,7 +10,7 @@ Este módulo permite elaborar términos y declaraciones para convertirlas desde
 fully named (@STerm) a locally closed (@Term@)
 -}
 
-module Elab ( elab, elabDecl) where
+module Elab ( elab, elabDecl, elabTy ) where
 
 import Lang
 import Subst
@@ -26,25 +26,32 @@ elab' env (SV p v) =
   -- Tenemos que ver si la variable es Global o es un nombre local
   -- En env llevamos la lista de nombres locales.
   if v `elem` env 
-    then  V p (Free v)
-    else V p (Global v)
+    then  return $ V p (Free v)
+    else return $ V p (Global v)
 
 elab' _ (SConst p c) = return $ Const p c
 
 
-elab' env (SLam p [] t) = return $ elab' env t
+-- elab' env (SLam p [] t) = do 
+--   t' <- elab' env t
+--   return t'
 elab' env (SLam p ((v,ty):tl) t) = do
-  t' <-(elab' (v:env) (SLam p tl t))
-  return $ Lam p v ty (close v t')
+  t' <- (elab' (v:env) (SLam p tl t))
+  ty' <- elabTy ty
+  return $ Lam p v ty' (close v t')
 
 
 
 elab' env (SFix p (f,fty) [(x,xty)] t) = do
   t' <- elab' (x:f:env) t
-  return $ Fix p f fty x xty (close2 f x (t'))
+  fty' <- elabTy fty
+  xty' <- elabTy xty
+  return $ Fix p f fty' x xty' (close2 f x (t'))
 elab' env (SFix p (f, fty) ((x, xty):tl) t) = do
   t' <- (elab' (x:f:env) (SLam p tl t))
-  return $ Fix p f fty x xty (close2 f x t') 
+  fty' <- elabTy fty
+  xty' <- elabTy xty
+  return $ Fix p f fty' x xty' (close2 f x t') 
 
 
 
@@ -71,16 +78,18 @@ elab' env (SApp p h a) = do
 
 elab' env (SLet False p [(v,vty)] def body) = do
   def' <- (elab' env def)
+  vty' <- (elabTy vty)
   body'  <- (elab' (v:env) body)
-  return $ Let p v vty def' (close v body')
+  return $ Let p v vty' def' (close v body')
 
 -- elab' env (SLet False p ((f,fty):tl) def body) =  
 --   Let p f fty (elab' env def) (close f (elab' (f:env) (SLam p tl body)))
 
 elab' env (SLet False p ((f,fty):tl) def body) = do
   def' <- (elab' env (SLam p tl def))
+  fty' <- (elabTy fty)
   body' <- (elab' (f:env) body)
-  return $ Let p f fty def' (close f body')
+  return $ Let p f fty' def' (close f body')
 
 
 -- elab' env (SLet p True [(v,vty)] def body) =  
@@ -88,24 +97,27 @@ elab' env (SLet False p ((f,fty):tl) def body) = do
 
 elab' env (SLet True p ((f,fty):tl) def body) = do
   def' <- (elab' env def)
+  fty' <- (elabTy fty)
   body' <- (elab' (f:env) (SFix p (f, fty) tl body))
-  return $ Let p f fty def' (close f body')
+  return $ Let p f fty' def' (close f body')
 
-elabTy :: STy -> Ty
-elabTy 
-elabTy
-elabTy 
+elabTy :: MonadFD4 m => STy -> m Ty
+elabTy SNatTy = return NatTy
+elabTy (SFunTy t1 t2) = do
+  t1' <- elabTy t1
+  t2' <- elabTy t2
+  return $ FunTy t1' t2'
+elabTy (SNameTy name) = do
+  tipo <- lookupTypeSin name
+  case tipo of
+    Nothing -> failFD4 $ "Sinónimo de tipo no declarado " ++ (show name)
+    (Just t) -> return $ VarTy name t
 
-elabDecl :: MonadFd4 m => Decl STerm -> m Decl Term
-elabDecl (SDecl pos name body) = return $ Decl pos name (elab body)
+elabDecl :: MonadFD4 m => SDecl STerm -> m (Decl Term)
+elabDecl (SDecl pos name body) = do
+  body' <- elab body
+  return $ Decl pos name body'
 elabDecl (SDeclTy pos name t) = do
-
-  return $ Decl pos name t
-
---elabDecl :: SDecl STerm -> Decl Term
---elabDecl d@(SDecl True pos name body) = 
---  let term = elab body
---  in Decl pos name term
---elabDecl d@(SDecl False pos name body) = 
---  let term = elab body
---  in Decl pos name term
+  ty <- elabTy t
+  addTypeSin (name, ty)
+  return $ Decl  pos name (V pos (Global name))

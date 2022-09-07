@@ -14,7 +14,8 @@ module PPrint (
     pp,
     ppTy,
     ppName,
-    ppDecl
+    ppDecl,
+    ty2sty
     ) where
 
 import Lang
@@ -220,16 +221,4 @@ ppDecl (Decl p x t) = do
                        , name2doc x 
                        , defColor (pretty "=")] 
                    <+> nest 2 (t2doc False (openAll fst (map declName gdecl) t)))
-
-
--- ppDecl :: MonadFD4 m => Decl TTerm -> m String
--- ppDecl (Decl p x t b) = do 
---   gdecl <- gets glb
---   return (render $ sep [defColor (pretty "let")
---                        , name2doc x 
---                        , pretty ":"
---                        , ty2doc t
---                        , defColor (pretty "=")] 
---                    <+> nest 2 (t2doc False (openAll fst (map declName gdecl) b)))
-                         
 
