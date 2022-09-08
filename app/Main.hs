@@ -30,9 +30,9 @@ import Global
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab )
+import Elab ( elab, elabDecl )
 import Eval ( eval )
-import PPrint ( pp , ppTy, ppDecl )
+import PPrint ( pp , ppTy, ppDecl, ty2sty )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 
@@ -103,7 +103,7 @@ repl args = do
                        b <- lift $ catchErrors $ handleCommand c
                        maybe loop (`when` loop) b
 
-loadFile ::  MonadFD4 m => FilePath -> m [Decl STerm]
+loadFile ::  MonadFD4 m => FilePath -> m [SDecl STerm]
 loadFile f = do
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (readFile filename)
@@ -119,7 +119,8 @@ compileFile f = do
     setInter False
     printFD4 ("Abriendo "++f++"...")
     decls <- loadFile f
-    mapM_ handleDecl decls
+    decls' <- mapM elabDecl decls
+    mapM_ handleDecl decls'
     setInter i
 
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
@@ -127,7 +128,7 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-handleDecl ::  MonadFD4 m => Decl STerm -> m ()
+handleDecl ::  MonadFD4 m => Decl Term -> m ()
 handleDecl d = do
         m <- getMode
         case m of
@@ -146,8 +147,8 @@ handleDecl d = do
               printFD4 ppterm
 
       where
-        typecheckDecl :: MonadFD4 m => Decl STerm -> m (Decl TTerm)
-        typecheckDecl (Decl p x t) = tcDecl (Decl p x (elab t))
+        typecheckDecl :: MonadFD4 m => Decl Term -> m (Decl TTerm)
+        typecheckDecl (Decl p x t) = tcDecl (Decl p x t)
 
 
 data Command = Compile CompileForm
@@ -229,7 +230,8 @@ compilePhrase ::  MonadFD4 m => String -> m ()
 compilePhrase x = do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of
-      Left d  -> handleDecl d
+      Left d  -> do d' <- elabDecl d
+                    handleDecl d'
       Right t -> handleTerm t
 
 handleTerm ::  MonadFD4 m => STerm -> m ()
@@ -239,7 +241,7 @@ handleTerm t = do
          tt <- tc t' (tyEnv s)
          te <- eval tt
          ppte <- pp te
-         printFD4 (ppte ++ " : " ++ ppTy (getTy tt))
+         printFD4 (ppte ++ " : " ++ ppTy (ty2sty $ getTy tt))
 
 printPhrase   :: MonadFD4 m => String -> m ()
 printPhrase x =
@@ -263,4 +265,4 @@ typeCheckPhrase x = do
          s <- get
          tt <- tc t' (tyEnv s)
          let ty = getTy tt
-         printFD4 (ppTy ty)
+         printFD4 (ppTy $ ty2sty ty)
