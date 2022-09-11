@@ -1,4 +1,4 @@
-(fix (mul:Nat->Nat->Nat) (m:Nat) (n:Nat) -> ifz m then 0 else n + (mul (m-1) n)) 16 8
+{-fix (mul:Nat->Nat->Nat) (m:Nat) (n:Nat) -> ifz m then 0 else n + (mul (m-1) n))
 
 fun (x:Nat) (y:Nat) -> x + y
 
@@ -12,5 +12,31 @@ fix (mul:Nat ->Nat->Nat) (m:Nat) -> fun (n:Nat) -> ifz n then 0 else m+1
 fix (mul:Nat ->Nat->Nat) (m:Nat) (n:Nat) -> ifz n then 0 else m+1
 
 
-fun (m:Nat)(n:nat) -> m+n
+fun (m:Nat)(n:nat) -> m+n-}
 
+let resta (x:Nat)(y:Nat):Nat = x - y
+
+
+let mult:Nat->Nat->Nat = fix(mul: Nat -> Nat -> Nat) (m: Nat) ->
+               fun(n: Nat) -> ifz n then 0 else (ifz n - 1 then m else m + (mul m (n - 1)))
+
+
+let expt:Nat->Nat->Nat = fix(exp: Nat -> Nat -> Nat) (a: Nat) ->
+               fun(b: Nat) -> ifz b then 1 else (ifz b - 1 then a else mult a (exp a (b - 1)))
+
+
+let fact:Nat->Nat = fix(fac:Nat -> Nat) (n: Nat) ->
+               ifz n then 1 else mult n (fac (n - 1))
+
+
+let gcd:Nat->Nat->Nat = fix(gcd': Nat -> Nat -> Nat) (m: Nat) ->
+            fun(n: Nat) -> ifz n then m 
+                                 else (ifz m then n 
+                                             else (ifz n - m then gcd' (m - n) n
+                                                             else gcd' m (n - m)))
+{-
+let rNat = fun(z: Nat) -> fun(s: Nat -> Nat -> Nat) ->
+            fix(f: Nat -> Nat) (n: Nat) -> ifz n then z else s (n - 1) (n - 1)
+
+let min = fun(f: Nat -> Nat) -> (fix(min': Nat -> Nat) (n: Nat) ->
+            ifz f n then n else min' (n + 1)) 0-}
