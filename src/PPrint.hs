@@ -35,7 +35,7 @@ import Prettyprinter
       parens,
       Doc,
       Pretty(pretty) )
-import MonadFD4 ( gets, MonadFD4 )
+import MonadFD4 ( gets, MonadFD4, failFD4 )
 import Global ( GlEnv(glb) )
 
 freshen :: [Name] -> Name -> Name
@@ -229,3 +229,6 @@ ppDecl (Decl p x ty t) = do
                        , defColor (pretty "=")] 
                    <+> nest 2 (t2doc False (openAll fst (map declName gdecl) t)))
 
+ppTypeSyn :: MonadFD4 m => SDecl STerm -> m String
+ppTypeSyn (SDeclSTy pos s st) = return $ render $ sep [defColor (pretty "type"), name2doc s, opColor (pretty "="), sty2doc st]
+ppTypeSyn _ = failFD4 "Unreachable error"
