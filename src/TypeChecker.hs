@@ -91,8 +91,8 @@ expect :: MonadFD4 m => Ty    -- ^ tipo esperado
 expect ty tt = let ty' = getTy tt
                in if ty == ty' then return tt 
                                else typeError tt $ 
-              "Tipo esperado: "++ show (ppTy ty)
-            ++"\npero se obtuvo: "++ show (ppTy ty')
+              "Tipo esperado: "++  ppTy ty
+            ++"\npero se obtuvo: "++  ppTy ty'
 
 -- | 'domCod chequea que un tipo sea función
 -- | devuelve un par con el tipo del dominio y el codominio de la función
