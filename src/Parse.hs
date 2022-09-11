@@ -36,6 +36,8 @@ lexer = Tok.makeTokenParser langDef
 langDef :: LanguageDef u
 langDef = emptyDef {
          commentLine    = "#",
+         commentStart   = "{-",
+         commentEnd     = "-}",
          reservedNames = ["let", "rec","fun", "fix", "then", "else","in",
                            "ifz", "print","Nat","type"],
          reservedOpNames = ["->",":","=","+","-"]
@@ -102,9 +104,9 @@ printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  ( do  a <- atom
-        return (SPrint i str a)
-    <|> return (SLam i [("x", SNatTy)] (SPrint i str (SV i "x")))) 
+  do  a <- atom
+      return (SPrint i str a)
+      <|> return (SLam i [("x", SNatTy)] (SPrint i str (SV i "x")))
 
 
 binary :: String -> BinaryOp -> Assoc -> Operator String () Identity STerm
@@ -131,9 +133,7 @@ binding = do v <- var
              return (v, ty)
 
 binders :: P [(Name, STy)]
-binders = do 
-  lst <- many1 $ (parens binding <|> binding)
-  return lst
+binders = do many1 (parens binding <|> binding)
 
 lam :: P STerm
 lam = do i <- getPos
@@ -166,119 +166,62 @@ fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
          (f, fty) <- parens binding
-         args <- many $ (parens binding) <|> binding
+         args <- many (parens binding <|> binding)
          reservedOp "->"
          t <- expr
          return (SFix i (f,fty) args t)
-
 
 letexp :: P STerm
 letexp = do
   i <- getPos
   reserved "let"
-  (v,ty) <- (parens binding <|> binding)
-  reservedOp "="  
-  def <- expr
-  reserved "in"
-  body <- expr
-  return (SLet False i [(v,ty)] def body)
-
-
-  
-letexpFun :: P STerm
-letexpFun = do
-  i <- getPos
-  reserved "let"
-  (name, lst@((v, ty):tl), retType) <- parse_func
+  isRec <- (reserved "rec" >> return True) <|> return False
+  lst <- parseFunc
   reservedOp "=" 
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet False i ([(name, buildFunTy lst retType)] ++ lst) def body)
-
-
+  return (SLet isRec i  lst  def body)
 
 -- parsea algo de la forma
 -- f (x1:T1) ... (nx:Tn) : Tr
-parse_func :: P (Name, [(Name, STy)], STy)
-parse_func = do
+parseFunc :: P [(Name, STy)]
+parseFunc = do
   name <- var
-  args <- many $ (parens binding) <|> binding
+  args <- many (parens binding <|> binding)
   reservedOp ":"
   retType <- typeP
-  return (name, args, retType)
-
-
--- toma una lista con lista de argumentos de una función y sus tipos
--- y el tipo que retorna una función y crea el tipo de la función
-buildFunTy :: [(Name, STy)] -> STy -> STy
-buildFunTy [] retType = retType
-buildFunTy ((x, xty):tl) retType = (SFunTy xty (buildFunTy tl retType))
-
-
-letrecexp :: P STerm
-letrecexp = do
-  i <- getPos
-  reservedOp "let"
-  reservedOp "rec"
-  (name, lst@((v, ty):tl), retType) <- parse_func
-  reservedOp "=" 
-  def <- expr
-  reserved "in"
-  body <- expr
-  return (SLet True i ([(name, buildFunTy lst retType)] ++ lst) def body)
-
-
-
+  return $ (name, retType): args
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix  <|> try letexpFun <|> (try letexp <|> letrecexp)
+tm = app <|> lam <|> ifz <|> printOp <|> fix  <|> letexp 
 
 
 
-decl_let :: P (SDecl STerm)
-decl_let = do
+declLet :: P (SDecl STerm)
+declLet = do 
   i <- getPos
   reservedOp "let"
-  (x, xty) <- parens binding <|> binding
+  isRec <- (reserved "rec" >> return True) <|> return False
+  binds <- parseFunc
   reservedOp "="
   body <- expr
-  return $ SDecl  i x body
-
-decl_letfun :: P (SDecl STerm)
-decl_letfun = do 
-  i <- getPos
-  reservedOp "let"
-  (name, lst@((v, ty):tl), retType) <- parse_func
-  reservedOp "="
-  body <- expr
-  return $ SDecl  i name body
+  return $ SDecl i binds body isRec
 
 
-decl_letrec :: P (SDecl STerm)
-decl_letrec = do 
-  i <- getPos
-  reservedOp "let"
-  reservedOp "rec"
-  (name, lst@((v, ty):tl), retType) <- parse_func
-  reservedOp "=" 
-  body <- expr
-  return $ SDecl i name body
-
-
-decl_typeDef :: P (SDecl STerm)
-decl_typeDef = do
+declTypeDef :: P (SDecl STerm)
+declTypeDef = do
   i <- getPos
   reservedOp "type"
   n <- var
   reservedOp "="
   ty <- typeP
-  return (SDeclTy i n ty)
+  return (SDeclSTy i n ty)
 
 -- | Parser de declaraciones
 decl :: P (SDecl STerm)
-decl = decl_letfun <|> decl_letrec <|> decl_let
+decl = declLet <|> declTypeDef
 
 
 -- | Parser de programas (listas de declaraciones) 
