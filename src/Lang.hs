@@ -46,7 +46,15 @@ data Ty =
       NatTy
     | FunTy Ty Ty
     | VarTy Name Ty
-    deriving (Show,Eq)
+    deriving Show
+
+instance Eq Ty where
+    NatTy == NatTy = True
+    FunTy _ _ == NatTy = False
+    NatTy == FunTy _ _ = False
+    FunTy t1 t2 == FunTy t1' t2' = t1 == t1' && t2 == t2'
+    VarTy _ t == t' = t == t'
+    t' == VarTy _ t = t == t'
 
 data STy =
   SNatTy
