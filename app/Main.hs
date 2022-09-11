@@ -32,7 +32,7 @@ import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Elab ( elab, elabDecl )
 import Eval ( eval )
-import PPrint ( pp , ppTy, ppDecl, ty2sty )
+import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 
@@ -133,9 +133,9 @@ handleDecl d = do
         m <- getMode
         case m of
           Interactive -> do
-              (Decl p x tt) <- typecheckDecl d
+              (Decl p x ty tt) <- typecheckDecl d
               te <- eval tt
-              addDecl (Decl p x te)
+              addDecl (Decl p x ty te)
           Typecheck -> do
               f <- getLastFile
               printFD4 ("Chequeando tipos de "++f)
@@ -148,7 +148,7 @@ handleDecl d = do
 
       where
         typecheckDecl :: MonadFD4 m => Decl Term -> m (Decl TTerm)
-        typecheckDecl (Decl p x t) = tcDecl (Decl p x t)
+        typecheckDecl (Decl p x ty t) = tcDecl (Decl p x ty t)
 
 
 data Command = Compile CompileForm
@@ -241,7 +241,7 @@ handleTerm t = do
          tt <- tc t' (tyEnv s)
          te <- eval tt
          ppte <- pp te
-         printFD4 (ppte ++ " : " ++ ppTy (ty2sty $ getTy tt))
+         printFD4 (ppte ++ " : " ++ ppTy (getTy tt))
 
 printPhrase   :: MonadFD4 m => String -> m ()
 printPhrase x =
@@ -265,4 +265,4 @@ typeCheckPhrase x = do
          s <- get
          tt <- tc t' (tyEnv s)
          let ty = getTy tt
-         printFD4 (ppTy $ ty2sty ty)
+         printFD4 (ppTy ty)
