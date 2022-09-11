@@ -86,6 +86,7 @@ getPos = do pos <- getPosition
 
 tyatom :: P STy
 tyatom = (reserved "Nat" >> return SNatTy)
+         <|> (SNameTy <$> tyIdentifier)
          <|> parens typeP
 
 typeP :: P STy
@@ -214,7 +215,7 @@ declTypeDef :: P (SDecl STerm)
 declTypeDef = do
   i <- getPos
   reservedOp "type"
-  n <- var
+  n <- tyIdentifier
   reservedOp "="
   ty <- typeP
   return (SDeclSTy i n ty)
