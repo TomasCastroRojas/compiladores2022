@@ -32,7 +32,6 @@ data STm info ty var =
 
   | SApp info (STm info ty var) (STm info ty var)
   | SPrint info String (STm info ty var)
-  | SPrintU info String
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
 
   | SFix info (var, ty) [(var, ty)] (STm info ty var)
@@ -68,19 +67,22 @@ data BinaryOp = Add | Sub
 
 data SDecl a = SDecl
   { sDeclPos   :: Pos
-  , sDeclName  :: Name
+  , sDeclBinds :: [(Name, STy)]
   , sDeclBody  :: a
+  , sDeclRec   :: Bool
   } 
-  | SDeclTy 
+  | SDeclSTy
   { sDeclPos   :: Pos
   , sDeclName  :: Name
-  , sDeclType  :: STy
+  , sDeclSTy   :: STy
   }
+  deriving (Show, Functor)
 
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a = Decl
   { declPos  :: Pos
   , declName :: Name
+  , declTy   :: Ty
   , declBody :: a
   }
   deriving (Show, Functor)
