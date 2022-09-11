@@ -91,25 +91,26 @@ expect :: MonadFD4 m => Ty    -- ^ tipo esperado
 expect ty tt = let ty' = getTy tt
                in if ty == ty' then return tt 
                                else typeError tt $ 
-              "Tipo esperado: "++ show (ppTy $ ty2sty ty)
-            ++"\npero se obtuvo: "++ show (ppTy $ ty2sty ty')
+              "Tipo esperado: "++ show (ppTy ty)
+            ++"\npero se obtuvo: "++ show (ppTy ty')
 
 -- | 'domCod chequea que un tipo sea función
 -- | devuelve un par con el tipo del dominio y el codominio de la función
 domCod :: MonadFD4 m => TTerm -> m (Ty, Ty)
 domCod tt = case getTy tt of
     FunTy d c -> return (d, c)
-    _         -> typeError tt $ "Se esperaba un tipo función, pero se obtuvo: " ++ show( ppTy $ ty2sty $ getTy tt)
+    _         -> typeError tt $ "Se esperaba un tipo función, pero se obtuvo: " ++ show( ppTy $ getTy tt)
 
 -- | 'tcDecl' chequea el tipo de una declaración
 -- y la agrega al entorno de tipado de declaraciones globales
 tcDecl :: MonadFD4 m  => Decl Term -> m (Decl TTerm)
-tcDecl (Decl p n t) = do
+tcDecl (Decl p n ty t) = do
     --chequear si el nombre ya está declarado
     mty <- lookupTy n
     case mty of
         Nothing -> do  --no está declarado 
                   s <- get
-                  tt <- tc t (tyEnv s)                 
-                  return (Decl p n tt)
+                  tt <- tc t (tyEnv s)
+                  expect ty tt                
+                  return (Decl p n ty tt)
         Just _  -> failPosFD4 p $ n ++" ya está declarado"
