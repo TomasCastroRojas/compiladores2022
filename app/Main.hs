@@ -30,7 +30,7 @@ import Global
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab, elabDecl )
+import Elab ( elab, elabDecl, elabTy )
 import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
@@ -119,8 +119,7 @@ compileFile f = do
     setInter False
     printFD4 ("Abriendo "++f++"...")
     decls <- loadFile f
-    decls' <- mapM elabDecl decls
-    mapM_ handleDecl decls'
+    mapM_ handleDecl decls
     setInter i
 
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
@@ -128,23 +127,37 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-handleDecl ::  MonadFD4 m => Decl Term -> m ()
+handleDecl ::  MonadFD4 m => SDecl STerm -> m ()
 handleDecl d = do
         m <- getMode
         case m of
           Interactive -> do
-              (Decl p x ty tt) <- typecheckDecl d
-              te <- eval tt
-              addDecl (Decl p x ty te)
+            case d of    
+              SDecl {} -> do
+                d' <- elabDecl d
+                (Decl p n ty tt) <- tcDecl d'
+                te <- eval tt
+                addDecl (Decl p n ty te)
+              SDeclSTy p n sty -> do
+                ty <- elabTy sty
+                addTypeSin (n, ty)
           Typecheck -> do
-              f <- getLastFile
-              printFD4 ("Chequeando tipos de "++f)
-              td <- typecheckDecl d
-              addDecl td
-              -- opt <- getOpt
-              -- td' <- if opt then optimize td else td
-              ppterm <- ppDecl td  --td'
-              printFD4 ppterm
+            f <- getLastFile
+            printFD4 ("Chequeando tipos de "++f)
+            case d of
+              SDecl {} -> do
+                d' <- elabDecl d      
+                td <- typecheckDecl d'
+                addDecl td
+                -- opt <- getOpt
+                -- td' <- if opt then optimize td else td
+                ppterm <- ppDecl td  --td'
+                printFD4 ppterm
+              SDeclSTy p n sty -> do
+                ty <- elabTy sty
+                addTypeSin (n, ty)
+
+              
 
       where
         typecheckDecl :: MonadFD4 m => Decl Term -> m (Decl TTerm)
@@ -230,8 +243,7 @@ compilePhrase ::  MonadFD4 m => String -> m ()
 compilePhrase x = do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of
-      Left d  -> do d' <- elabDecl d
-                    handleDecl d'
+      Left d  -> handleDecl d
       Right t -> handleTerm t
 
 handleTerm ::  MonadFD4 m => STerm -> m ()
