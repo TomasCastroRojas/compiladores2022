@@ -109,7 +109,6 @@ elabTy (SNameTy name) = do
     (Just t) -> return $ VarTy name t
 
 elabDecl :: MonadFD4 m => SDecl STerm -> m (Decl Term)
-elabDecl (SDecl pos []  _ _) = failPosFD4 pos "Declaracion sin variables"
 elabDecl (SDecl pos [(n, sty)] body _) = do
   body' <- elab body
   ty <- elabTy sty
@@ -122,10 +121,7 @@ elabDecl (SDecl pos ((n, sty):bs) body True) = do
   body' <- elab (SFix pos (n, buildFunTy bs sty) bs body)
   ty <- elabTy $ buildFunTy bs sty
   return $ Decl pos n ty body'
-elabDecl (SDeclSTy pos name sty) = do
-  ty <- elabTy sty
-  addTypeSin (name, ty)
-  return $ Decl pos name ty (V pos (Global name))
+elabDecl _ = failFD4 "Unreacheable error"
 
 
 buildFunTy :: [(Name, STy)] -> STy -> STy
