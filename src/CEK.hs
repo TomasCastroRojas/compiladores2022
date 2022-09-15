@@ -61,3 +61,4 @@ destroy v ((KClos (VClosFun env x t)):ktl) = search t (v:env) ktl
 destroy v ((KClos clos@(VClosFix env f x t)):ktl) = search t (clos:v:env) ktl
 
 destroy v ((KLet env name t):ktl) = search t (v:env) ktl
+destroy v [] = return v
