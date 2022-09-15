@@ -1,3 +1,5 @@
+module CEK (search) where
+
 import Lang
 import MonadFD4
 
@@ -16,6 +18,7 @@ data Frame =
     | KOp1 BinaryOp Env TTerm -- p.[] (+) u 
     | KOp2 BinaryOp Val --  v (+) []
     | KPrint String -- print str []
+    | KLet Env Name TTerm -- p. let x = [] in t
     deriving Show
 
 type Kont = [Frame]
@@ -38,6 +41,10 @@ search (Const info (CNat n)) p k = destroy (VNat n) k
 search (Fix info name1 ty1 name2 ty2 (Sc2 t)) p k = destroy (VClosFix p name1 name2 t) k
 search (Lam info name ty (Sc1 t)) p k = destroy (VClosFun p name t) k
 
+search (Let info name ty tx (Sc1 tt)) p k = search tx p ((KLet p name tt):k)
+
+
+
 
 
 destroy :: MonadFD4 m => Val -> Kont -> m Val
@@ -52,3 +59,5 @@ destroy clos@(VClosFun env name t) ((KArg p t2):ktl) = search t env ((KClos clos
 destroy clos@(VClosFix env name1 name2 t) ((KArg p t2):ktl) = search t env ((KClos clos):ktl)
 destroy v ((KClos (VClosFun env x t)):ktl) = search t (v:env) ktl
 destroy v ((KClos clos@(VClosFix env f x t)):ktl) = search t (clos:v:env) ktl
+
+destroy v ((KLet env name t):ktl) = search t (v:env) ktl
