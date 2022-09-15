@@ -1,0 +1,3 @@
+let x:Nat = 4
+
+let suma(x:Nat) (y:Nat):Nat = x + y

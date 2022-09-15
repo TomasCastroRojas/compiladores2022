@@ -35,7 +35,7 @@ import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
-import CEK (search)
+import CEK (runCEK, val2tterm)
 
 prompt :: String
 prompt = "FD4> "
@@ -74,6 +74,8 @@ main = execParser opts >>= go
     go :: (Mode,Bool,[FilePath]) -> IO ()
     go (Interactive,opt,files) =
               runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
+    go (InteractiveCEK, opt, files) =
+              runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
     go (m,opt, files) =
               runOrFail (Conf opt m) $ mapM_ compileFile files
 
@@ -132,6 +134,16 @@ handleDecl ::  MonadFD4 m => SDecl STerm -> m ()
 handleDecl d = do
         m <- getMode
         case m of
+          InteractiveCEK -> do
+            case d of    
+              SDecl {} -> do
+                d' <- elabDecl d
+                (Decl p n ty tt) <- tcDecl d'
+                tcek <- runCEK tt
+                addDecl (Decl p n ty (val2tterm tcek))
+              SDeclSTy p n sty -> do
+                ty <- elabTy sty
+                addTypeSin (n, ty)
           Interactive -> do
             case d of    
               SDecl {} -> do
