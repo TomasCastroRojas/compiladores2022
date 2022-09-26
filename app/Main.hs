@@ -36,6 +36,7 @@ import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 import CEK (runCEK, val2tterm)
+import Bytecompile
 
 prompt :: String
 prompt = "FD4> "
@@ -47,9 +48,9 @@ parseMode :: Parser (Mode,Bool)
 parseMode = (,) <$>
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
      <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
-  -- <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
-  -- <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
-      <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
+     <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
+     <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
+     <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
   -- <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
   -- <|> flag' Canon ( long "canon" <> short 'n' <> help "Imprimir canonicalización")
   -- <|> flag' Assembler ( long "assembler" <> short 'a' <> help "Imprimir Assembler resultante")
@@ -76,6 +77,8 @@ main = execParser opts >>= go
               runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
     go (InteractiveCEK, opt, files) =
               runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
+    go (Bytecompile, opt, files) =
+              runOrFail (Conf opt Bytecompile) $ mapM_ bytecompile files
     go (m,opt, files) =
               runOrFail (Conf opt m) $ mapM_ compileFile files
 
@@ -105,6 +108,17 @@ repl args = do
                        c <- liftIO $ interpretCommand x
                        b <- lift $ catchErrors $ handleCommand c
                        maybe loop (`when` loop) b
+
+
+bytecompile :: MonadFD4 m => FilePath -> m ()
+bytecompile f = do
+  decls <- loadFile f
+  mapM_ elabDecl decls
+  mapM_ tcDecl decls
+  bc <- bytecompileModule decls
+  bcWrite bc f
+  return ()
+
 
 loadFile ::  MonadFD4 m => FilePath -> m [SDecl STerm]
 loadFile f = do
