@@ -12,7 +12,7 @@ Este módulo permite compilar módulos a la Macchina. También provee
 una implementación de la Macchina para ejecutar el bytecode.
 -}
 module Bytecompile
-  (Bytecode, runBC, bcWrite, bcRead, bytecompileModule, showBC)
+  (Bytecode, runBC, bcWrite, bcRead, bytecompileModule, showBC, bcc)
  where
 
 import Lang
@@ -72,6 +72,8 @@ pattern SHIFT    = 11
 pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
+
+-- JUMP i salta i posiciones del bytecode si el tope de la pila es 0
 pattern JUMP     = 15
 
 --función util para debugging: muestra el Bytecode de forma más legible.
@@ -100,7 +102,59 @@ showBC :: Bytecode -> String
 showBC = intercalate "; " . showOps
 
 bcc :: MonadFD4 m => TTerm -> m Bytecode
-bcc t = failFD4 "implementame!"
+bcc (Const info (CNat n)) = return $ [CONST, n]
+bcc (App info t1 t2) = do
+  bc1 <- bcc t1
+  bc2 <- bcc t2
+  return $ bc1 ++ bc2 ++ [CALL]
+
+bcc (V info (Bound i)) = return [ACCESS,i]
+bcc (V info (Global name)) = do
+  def <- lookupDecl name
+  case def of
+    Nothing -> failFD4 "Variable no declarada"
+    Just t -> do  bc <- bcc t
+                  return bc
+  
+bcc (V info (Free name)) = error "Error variable libre"
+
+bcc (BinaryOp info Add t1 t2) = do
+  bc1 <- bcc t1
+  bc2 <- bcc t2
+  return $ bc1 ++ bc2 ++ [ADD]
+bcc (BinaryOp info Sub t1 t2) = do
+  bc1 <- bcc t1
+  bc2 <- bcc t2
+  return $ bc1 ++ bc2 ++ [SUB]
+
+bcc (Let info name ty def (Sc1 term)) = do
+  bc1 <- bcc def
+  bc2 <- bcc term
+  return $ bc1 ++ [SHIFT] ++ bc2 ++ [DROP]
+
+bcc (Lam info name ty (Sc1 tterm)) = do
+  bc_body <- bcc tterm
+  return $ [FUNCTION, length bc_body] ++ bc_body ++ [RETURN] 
+bcc (Fix info _ _ _ _ (Sc2 term)) = do
+  bc_body <- bcc term
+  return $ [FUNCTION, length bc_body] ++ bc_body ++ [RETURN, FIX] 
+
+bcc (Print info str term) = do 
+  bc <- bcc term
+  return $ [PRINT] ++ (string2bc str) ++ [NULL] ++ bc ++ [PRINTN]
+
+-- Si el tope de la pila es 0 salta el bytecode de false,
+-- sino ejecuta el false y salta el bytecode de true
+bcc (IfZ info c t f) = do
+  bcC <- bcc c
+  bcT <- bcc t
+  bcF <- bcc f
+  let lenTrue = length bcT
+  let lenFalse = length bcF
+  return $ bcC ++ [JUMP, lenFalse] ++ bcF ++ [JUMP, lenTrue] ++ bcT
+
+
+
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.
@@ -111,7 +165,12 @@ bc2string :: Bytecode -> String
 bc2string = map chr
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
-bytecompileModule m = failFD4 "implementame!"
+bytecompileModule [] = return $ [STOP] 
+bytecompileModule ((Decl _ _ _ body):xs) = do
+  bcBody <- bcc body
+  prog <- bytecompileModule xs
+  return $ bcBody ++ [SHIFT] ++ prog
+
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
 bcWrite :: Bytecode -> FilePath -> IO ()
