@@ -12,7 +12,7 @@ Este módulo permite compilar módulos a la Macchina. También provee
 una implementación de la Macchina para ejecutar el bytecode.
 -}
 module Bytecompile
-  (Bytecode, runBC, bcWrite, bcRead, bytecompileModule, showBC, bcc)
+  (Bytecode, runBC, bcWrite, bcRead, bytecompileModule, showBC, bcc, bc2string)
  where
 
 import Lang
@@ -31,6 +31,9 @@ type Opcode = Int
 type Bytecode = [Int]
 
 newtype Bytecode32 = BC { un32 :: [Word32] }
+
+data Val = I Int | Fun Env Bytecode | RA Env Bytecode
+type Env = [Val]
 
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
@@ -141,6 +144,7 @@ bcc (Fix info _ _ _ _ (Sc2 term)) = do
 
 bcc (Print info str term) = do 
   bc <- bcc term
+
   return $ [PRINT] ++ (string2bc str) ++ [NULL] ++ bc ++ [PRINTN]
 
 -- Si el tope de la pila es 0 salta el bytecode de false,
@@ -151,7 +155,7 @@ bcc (IfZ info c t f) = do
   bcF <- bcc f
   let lenTrue = length bcT
   let lenFalse = length bcF
-  return $ bcC ++ [JUMP, lenFalse] ++ bcF ++ [JUMP, lenTrue] ++ bcT
+  return $ bcC ++ [JUMP, lenFalse + 4] ++ bcF ++ [CONST, 0, JUMP, lenTrue] ++ bcT
 
 
 
@@ -185,4 +189,30 @@ bcRead :: FilePath -> IO Bytecode
 bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 
 runBC :: MonadFD4 m => Bytecode -> m ()
-runBC bc = failFD4 "implementame!"
+runBC bc = do execVM bc [] []
+
+execVM :: MonadFD4 m => Bytecode -> [Val] -> [Val] -> m ()
+execVM [] _ _ = error "Codigo vacio"
+execVM (STOP:xs) _ _ = return ()
+execVM (CONST:n:xs) e s = execVM xs e ((I n):s)
+execVM (ADD:xs) e (I n:I m:s) = execVM xs e ((I (n+m)):s)
+execVM (SUB:xs) e (I n:I m:s) = execVM xs e ((I (max 0 (m-n))):s)
+execVM (ACCESS:n:xs) e s = execVM xs e ((e !! n):s)
+execVM (CALL:xs) e (v:Fun e' bc: s) = execVM bc (v:e) ((RA e xs):s)
+execVM (FUNCTION:len:xs) e s = execVM (drop len xs) e (Fun e (take len xs):s)
+execVM (RETURN:xs) e (val: RA e' c:s) = execVM c e (val:s)
+execVM (SHIFT:xs) e (val:s) = execVM xs (val:e) s
+execVM (DROP:xs) (val:e) s = execVM xs e s
+execVM (PRINTN:xs) e (I i:s) = do
+  printFD4 (show i)
+  execVM xs e (I i:s)
+execVM (PRINT:xs) e s = 
+  let ls = map chr $ takeWhile (\x -> x /= NULL) xs
+  in do printFD4 ls
+        execVM (drop (length ls + 1) xs) e s
+execVM (JUMP:j:xs) e ((I n):s) = case n of
+  0 -> execVM (drop j xs) e ((I n):s)
+  _ -> execVM xs e ((I n):s)
+execVM (FIX:xs) e ((Fun ef bc):s) =
+  let efix = (Fun efix bc): e
+  in execVM xs e ((Fun efix bc):s)

@@ -59,7 +59,7 @@ destroy val ((KPrint str):ktl) = do printFD4 (str ++ show val)
                                     destroy val ktl
 destroy n ((KOp1 op env term):ktl) = search term env ((KOp2 op n):ktl)
 destroy (VNat n') ((KOp2 Add (VNat val)):ktl) = destroy (VNat (val + n')) ktl
-destroy (VNat n') ((KOp2 Sub (VNat val)):ktl) = destroy (VNat (val - n')) ktl
+destroy (VNat n') ((KOp2 Sub (VNat val)):ktl) = destroy (VNat (max 0 (val - n'))) ktl
 destroy (VNat 0) ((KIfz p t2 t3):ktl) = search t2 p ktl
 destroy (VNat n) ((KIfz p t2 t3):ktl) = search t3 p ktl
 destroy clos@(VClosFun info env name ty t) ((KArg p t2):ktl) = search t env ((KClos clos):ktl)

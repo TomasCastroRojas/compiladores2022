@@ -79,6 +79,8 @@ main = execParser opts >>= go
               runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
     go (Bytecompile, opt, files) =
               runOrFail (Conf opt Bytecompile) $ mapM_ bytecompile files
+    go (RunVM, opt, files) =
+              runOrFail (Conf opt RunVM) $ mapM_ runVM files
     go (m,opt, files) =
               runOrFail (Conf opt m) $ mapM_ compileFile files
 
@@ -113,12 +115,27 @@ repl args = do
 bytecompile :: MonadFD4 m => FilePath -> m ()
 bytecompile f = do
   decls <- loadFile f
-  mapM_ elabDecl decls
-  mapM_ tcDecl decls
-  bc <- bytecompileModule decls
-  bcWrite bc f
+  dec <- mapM handle decls
+  bc <- bytecompileModule (concat dec)
+  printFD4 (showBC bc)
+  liftIO $ bcWrite bc (takeWhile (\x -> x /= '.') f ++ ".bc")
   return ()
 
+handle :: MonadFD4 m => SDecl STerm -> m [Decl TTerm]
+handle d = case d of    
+              SDecl {} -> do
+                d' <- elabDecl d
+                dec@(Decl p n ty tt) <- tcDecl d'
+                return [dec]
+              SDeclSTy p n sty -> do
+                ty <- elabTy sty
+                addTypeSin (n, ty)
+                return []
+
+runVM :: MonadFD4 m => FilePath -> m ()
+runVM f = do
+  bc <- liftIO $ bcRead f
+  runBC bc
 
 loadFile ::  MonadFD4 m => FilePath -> m [SDecl STerm]
 loadFile f = do
