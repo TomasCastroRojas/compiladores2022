@@ -126,6 +126,7 @@ handle d = case d of
               SDecl {} -> do
                 d' <- elabDecl d
                 dec@(Decl p n ty tt) <- tcDecl d'
+                addDecl dec
                 return [dec]
               SDeclSTy p n sty -> do
                 ty <- elabTy sty

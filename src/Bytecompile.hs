@@ -26,13 +26,14 @@ import Data.Binary.Get ( getWord32le, isEmpty )
 
 import Data.List (intercalate)
 import Data.Char
+import Common ( Pos(..) )
 
 type Opcode = Int
 type Bytecode = [Int]
 
 newtype Bytecode32 = BC { un32 :: [Word32] }
 
-data Val = I Int | Fun Env Bytecode | RA Env Bytecode
+data Val = I Int | Fun Env Bytecode | RA Env Bytecode deriving Show
 type Env = [Val]
 
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
@@ -78,6 +79,7 @@ pattern PRINTN   = 14
 
 -- JUMP i salta i posiciones del bytecode si el tope de la pila es 0
 pattern JUMP     = 15
+pattern JUMP0     = 16
 
 --función util para debugging: muestra el Bytecode de forma más legible.
 showOps :: Bytecode -> [String]
@@ -93,6 +95,7 @@ showOps (SUB:xs)         = "SUB" : showOps xs
 showOps (FIX:xs)         = "FIX" : showOps xs
 showOps (STOP:xs)        = "STOP" : showOps xs
 showOps (JUMP:i:xs)      = "JUMP" : show i: showOps xs
+showOps (JUMP0:i:xs)      = "JUMP0" : show i: showOps xs
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
@@ -137,14 +140,13 @@ bcc (Let info name ty def (Sc1 term)) = do
 
 bcc (Lam info name ty (Sc1 tterm)) = do
   bc_body <- bcc tterm
-  return $ [FUNCTION, length bc_body] ++ bc_body ++ [RETURN] 
+  return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN] 
 bcc (Fix info _ _ _ _ (Sc2 term)) = do
   bc_body <- bcc term
-  return $ [FUNCTION, length bc_body] ++ bc_body ++ [RETURN, FIX] 
+  return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN, FIX] 
 
 bcc (Print info str term) = do 
   bc <- bcc term
-
   return $ [PRINT] ++ (string2bc str) ++ [NULL] ++ bc ++ [PRINTN]
 
 -- Si el tope de la pila es 0 salta el bytecode de false,
@@ -155,7 +157,7 @@ bcc (IfZ info c t f) = do
   bcF <- bcc f
   let lenTrue = length bcT
   let lenFalse = length bcF
-  return $ bcC ++ [JUMP, lenFalse + 4] ++ bcF ++ [CONST, 0, JUMP, lenTrue] ++ bcT
+  return $ bcC ++ [JUMP0, lenFalse + 2] ++ bcF ++ [JUMP, lenTrue] ++ bcT
 
 
 
@@ -168,12 +170,32 @@ string2bc = map ord
 bc2string :: Bytecode -> String
 bc2string = map chr
 
+onBody :: (TTerm -> TTerm) -> Decl TTerm -> Decl TTerm
+onBody f (Decl d name ty body) = Decl d name ty (f body)
+
+glb2free :: Name -> TTerm -> TTerm
+glb2free name = varChangerGlobal  (\v p n -> if n == name then V p (Free n) else V p (Global n))
+
+openModule :: Module -> TTerm
+openModule decls = foldr (\d om ->
+                            let nm = declName d in
+                            Let (NoPos, NatTy) nm (declTy d) (declBody d) (close nm $ glb2free nm om))
+                         (Const (NoPos, NatTy) (CNat 0)) decls
+
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
+
 bytecompileModule [] = return $ [STOP] 
-bytecompileModule ((Decl _ _ _ body):xs) = do
+bytecompileModule ((Decl _ name _ body):xs) = do
   bcBody <- bcc body
-  prog <- bytecompileModule xs
+  let xs' = map (onBody (glb2free name)) xs
+  let xs'' = map (onBody ((\(Sc1 term) -> term).(close name))) xs'
+  prog <- bytecompileModule xs''
   return $ bcBody ++ [SHIFT] ++ prog
+  
+
+--bytecompileModule m =
+  --do bc <- bcc (openModule m)
+    -- return $ bc ++ [STOP]
 
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
@@ -198,8 +220,8 @@ execVM (CONST:n:xs) e s = execVM xs e ((I n):s)
 execVM (ADD:xs) e (I n:I m:s) = execVM xs e ((I (n+m)):s)
 execVM (SUB:xs) e (I n:I m:s) = execVM xs e ((I (max 0 (m-n))):s)
 execVM (ACCESS:n:xs) e s = execVM xs e ((e !! n):s)
-execVM (CALL:xs) e (v:Fun e' bc: s) = execVM bc (v:e) ((RA e xs):s)
-execVM (FUNCTION:len:xs) e s = execVM (drop len xs) e (Fun e (take len xs):s)
+execVM (CALL:xs) e (v:Fun e' bc: s) = execVM bc (v:e') ((RA e xs):s)
+execVM (FUNCTION:len:xs) e s = execVM (drop len xs) e ((Fun e (take len xs)):s)
 execVM (RETURN:xs) e (val: RA e' c:s) = execVM c e (val:s)
 execVM (SHIFT:xs) e (val:s) = execVM xs (val:e) s
 execVM (DROP:xs) (val:e) s = execVM xs e s
@@ -210,9 +232,14 @@ execVM (PRINT:xs) e s =
   let ls = map chr $ takeWhile (\x -> x /= NULL) xs
   in do printFD4 ls
         execVM (drop (length ls + 1) xs) e s
-execVM (JUMP:j:xs) e ((I n):s) = case n of
-  0 -> execVM (drop j xs) e ((I n):s)
-  _ -> execVM xs e ((I n):s)
+execVM (JUMP:j:xs) e s = execVM (drop j xs) e s
+execVM (JUMP0:j:xs) e ((I n):s) = case n of
+  0 -> execVM (drop j xs) e (s)
+  _ -> execVM xs e (s)
 execVM (FIX:xs) e ((Fun ef bc):s) =
   let efix = (Fun efix bc): e
   in execVM xs e ((Fun efix bc):s)
+
+execVM xs e s = do
+  printFD4 (showBC xs)
+  error "Caso feo"
