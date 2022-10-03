@@ -1,23 +1,26 @@
 
 {-let mult:Nat->Nat->Nat = fix(mul: Nat -> Nat -> Nat) (m: Nat) ->
-               fun(n: Nat) -> ifz n then 0 else (ifz n - 1 then m else m + (mul m (n - 1)))-}
+               fun(n: Nat) -> ifz n then 0 else (ifz n - 1 then m else m + (mul m (n - 1)))
 
-{-
+
 let rec mult (x:Nat)(y:Nat):Nat = ifz x then 0 else y + (mult (x-1) y)
 
-let asd:Nat = mult 2 99
+let asd:Nat = mult 2 2
 
 let a:Nat = print "mult: " asd
 
--}
-{-let fact:Nat->Nat = fix(fac:Nat -> Nat) (n: Nat) ->
+let fact:Nat->Nat = fix(fac:Nat -> Nat) (n: Nat) ->
                ifz n then 1 else mult n (fac (n - 1))
 
 let rec fact (x:Nat):Nat = ifz x then 1 else mult x (fact (n-1))
 
 let fa:Nat = fact 6
-let j:Nat = print "fac:" fa-}
+let j:Nat = print "fac:" fa
 
 let x : Nat = print "" 1
 let y : Nat = print "" (x+x)
-let z:Nat = print ""(x +y)
+let z:Nat = print ""(x +y)-}
+
+let f (x:Nat):Nat = ifz x then print "true:" 5 else print "false: " 0
+
+let y:Nat = print "suma" (f 0)
