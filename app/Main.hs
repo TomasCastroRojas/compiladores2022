@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 {-|
 Module      : Main
@@ -118,11 +119,11 @@ bytecompile f = do
   dec <- mapM handle decls
   bc <- bytecompileModule (concat dec)
   printFD4 (showBC bc)
-  liftIO $ bcWrite bc (takeWhile (\x -> x /= '.') f ++ ".bc")
+  liftIO $ bcWrite bc (takeWhile (/= '.') f ++ ".bc")
   return ()
 
 handle :: MonadFD4 m => SDecl STerm -> m [Decl TTerm]
-handle d = case d of    
+handle d = case d of
               SDecl {} -> do
                 d' <- elabDecl d
                 dec@(Decl p n ty tt) <- tcDecl d'
@@ -167,7 +168,7 @@ handleDecl d = do
         m <- getMode
         case m of
           InteractiveCEK -> do
-            case d of    
+            case d of
               SDecl {} -> do
                 d' <- elabDecl d
                 (Decl p n ty tt) <- tcDecl d'
@@ -177,7 +178,7 @@ handleDecl d = do
                 ty <- elabTy sty
                 addTypeSin (n, ty)
           Interactive -> do
-            case d of    
+            case d of
               SDecl {} -> do
                 d' <- elabDecl d
                 (Decl p n ty tt) <- tcDecl d'
@@ -191,7 +192,7 @@ handleDecl d = do
             printFD4 ("Chequeando tipos de "++f)
             case d of
               SDecl {} -> do
-                d' <- elabDecl d      
+                d' <- elabDecl d
                 td <- typecheckDecl d'
                 addDecl td
                 -- opt <- getOpt
@@ -201,8 +202,6 @@ handleDecl d = do
               SDeclSTy p n sty -> do
                 ty <- elabTy sty
                 addTypeSin (n, ty)
-
-              
 
       where
         typecheckDecl :: MonadFD4 m => Decl Term -> m (Decl TTerm)
