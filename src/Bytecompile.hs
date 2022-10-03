@@ -77,9 +77,10 @@ pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
 
--- JUMP i salta i posiciones del bytecode si el tope de la pila es 0
+-- CJUMP i salta i posiciones del bytecode si el tope de la pila es 0
+-- JUMP i salta i posiciones del bytecode
 pattern JUMP     = 15
-pattern JUMP0     = 16
+pattern CJUMP     = 16
 
 --función util para debugging: muestra el Bytecode de forma más legible.
 showOps :: Bytecode -> [String]
@@ -95,7 +96,7 @@ showOps (SUB:xs)         = "SUB" : showOps xs
 showOps (FIX:xs)         = "FIX" : showOps xs
 showOps (STOP:xs)        = "STOP" : showOps xs
 showOps (JUMP:i:xs)      = "JUMP" : show i: showOps xs
-showOps (JUMP0:i:xs)      = "JUMP0" : show i: showOps xs
+showOps (CJUMP:i:xs)      = "CJUMP" : show i: showOps xs
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
@@ -108,7 +109,7 @@ showBC :: Bytecode -> String
 showBC = intercalate "; " . showOps
 
 bcc :: MonadFD4 m => TTerm -> m Bytecode
-bcc (Const info (CNat n)) = return $ [CONST, n]
+bcc (Const info (CNat n)) = return [CONST, n]
 bcc (App info t1 t2) = do
   bc1 <- bcc t1
   bc2 <- bcc t2
@@ -119,9 +120,8 @@ bcc (V info (Global name)) = do
   def <- lookupDecl name
   case def of
     Nothing -> failFD4 "Variable no declarada"
-    Just t -> do  bc <- bcc t
-                  return bc
-  
+    Just t -> bcc t
+
 bcc (V info (Free name)) = error "Error variable libre"
 
 bcc (BinaryOp info Add t1 t2) = do
@@ -140,14 +140,14 @@ bcc (Let info name ty def (Sc1 term)) = do
 
 bcc (Lam info name ty (Sc1 tterm)) = do
   bc_body <- bcc tterm
-  return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN] 
+  return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN]
 bcc (Fix info _ _ _ _ (Sc2 term)) = do
   bc_body <- bcc term
-  return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN, FIX] 
+  return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN, FIX]
 
-bcc (Print info str term) = do 
+bcc (Print info str term) = do
   bc <- bcc term
-  return $ [PRINT] ++ (string2bc str) ++ [NULL] ++ bc ++ [PRINTN]
+  return $ [PRINT] ++ string2bc str ++ [NULL] ++ bc ++ [PRINTN]
 
 -- Si el tope de la pila es 0 salta el bytecode de false,
 -- sino ejecuta el false y salta el bytecode de true
@@ -157,7 +157,7 @@ bcc (IfZ info c t f) = do
   bcF <- bcc f
   let lenTrue = length bcT
   let lenFalse = length bcF
-  return $ bcC ++ [JUMP0, lenFalse + 2] ++ bcF ++ [JUMP, lenTrue] ++ bcT
+  return $ bcC ++ [CJUMP, lenFalse + 2] ++ bcF ++ [JUMP, lenTrue] ++ bcT
 
 
 
@@ -177,21 +177,21 @@ glb2free :: Name -> TTerm -> TTerm
 glb2free name = varChangerGlobal  (\v p n -> if n == name then V p (Free n) else V p (Global n))
 
 openModule :: Module -> TTerm
-openModule decls = foldr (\d om ->
+openModule = foldr (\d om ->
                             let nm = declName d in
                             Let (NoPos, NatTy) nm (declTy d) (declBody d) (close nm $ glb2free nm om))
-                         (Const (NoPos, NatTy) (CNat 0)) decls
+                         (Const (NoPos, NatTy) (CNat 0))
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 
-bytecompileModule [] = return $ [STOP] 
+bytecompileModule [] = return [STOP]
 bytecompileModule ((Decl _ name _ body):xs) = do
   bcBody <- bcc body
   let xs' = map (onBody (glb2free name)) xs
-  let xs'' = map (onBody ((\(Sc1 term) -> term).(close name))) xs'
+  let xs'' = map (onBody ((\(Sc1 term) -> term). close name)) xs'
   prog <- bytecompileModule xs''
   return $ bcBody ++ [SHIFT] ++ prog
-  
+
 
 --bytecompileModule m =
   --do bc <- bcc (openModule m)
@@ -216,29 +216,29 @@ runBC bc = do execVM bc [] []
 execVM :: MonadFD4 m => Bytecode -> [Val] -> [Val] -> m ()
 execVM [] _ _ = error "Codigo vacio"
 execVM (STOP:xs) _ _ = return ()
-execVM (CONST:n:xs) e s = execVM xs e ((I n):s)
-execVM (ADD:xs) e (I n:I m:s) = execVM xs e ((I (n+m)):s)
-execVM (SUB:xs) e (I n:I m:s) = execVM xs e ((I (max 0 (m-n))):s)
+execVM (CONST:n:xs) e s = execVM xs e (I n:s)
+execVM (ADD:xs) e (I n:I m:s) = execVM xs e (I (n+m):s)
+execVM (SUB:xs) e (I n:I m:s) = execVM xs e (I (max 0 (m-n)):s)
 execVM (ACCESS:n:xs) e s = execVM xs e ((e !! n):s)
-execVM (CALL:xs) e (v:Fun e' bc: s) = execVM bc (v:e') ((RA e xs):s)
-execVM (FUNCTION:len:xs) e s = execVM (drop len xs) e ((Fun e (take len xs)):s)
+execVM (CALL:xs) e (v:Fun e' bc: s) = execVM bc (v:e') (RA e xs:s)
+execVM (FUNCTION:len:xs) e s = execVM (drop len xs) e (Fun e (take len xs):s)
 execVM (RETURN:xs) e (val: RA e' c:s) = execVM c e (val:s)
 execVM (SHIFT:xs) e (val:s) = execVM xs (val:e) s
 execVM (DROP:xs) (val:e) s = execVM xs e s
 execVM (PRINTN:xs) e (I i:s) = do
   printFD4 (show i)
   execVM xs e (I i:s)
-execVM (PRINT:xs) e s = 
-  let ls = map chr $ takeWhile (\x -> x /= NULL) xs
+execVM (PRINT:xs) e s =
+  let ls = map chr $ takeWhile (/= NULL) xs
   in do printFD4 ls
         execVM (drop (length ls + 1) xs) e s
 execVM (JUMP:j:xs) e s = execVM (drop j xs) e s
-execVM (JUMP0:j:xs) e ((I n):s) = case n of
-  0 -> execVM (drop j xs) e (s)
-  _ -> execVM xs e (s)
+execVM (CJUMP:j:xs) e ((I n):s) = case n of
+  0 -> execVM (drop j xs) e s
+  _ -> execVM xs e s
 execVM (FIX:xs) e ((Fun ef bc):s) =
-  let efix = (Fun efix bc): e
-  in execVM xs e ((Fun efix bc):s)
+  let efix = Fun efix bc: e
+  in execVM xs e (Fun efix bc:s)
 
 execVM xs e s = do
   printFD4 (showBC xs)
