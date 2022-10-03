@@ -183,7 +183,7 @@ openModule = foldr (\d om ->
                          (Const (NoPos, NatTy) (CNat 0))
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
-
+{-
 bytecompileModule [] = return [STOP]
 bytecompileModule ((Decl _ name _ body):xs) = do
   bcBody <- bcc body
@@ -191,11 +191,11 @@ bytecompileModule ((Decl _ name _ body):xs) = do
   let xs'' = map (onBody ((\(Sc1 term) -> term). close name)) xs'
   prog <- bytecompileModule xs''
   return $ bcBody ++ [SHIFT] ++ prog
+-}
 
-
---bytecompileModule m =
-  --do bc <- bcc (openModule m)
-    -- return $ bc ++ [STOP]
+bytecompileModule m = do bc <- bcc (openModule m)
+                         return $ bc ++ [STOP]
+  
 
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
