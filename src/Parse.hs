@@ -182,7 +182,7 @@ letexp = do
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet isRec i  lst  def body)
+  return (SLet isRec i lst def body)
 
 -- parsea algo de la forma
 -- f (x1:T1) ... (nx:Tn) : Tr
@@ -222,7 +222,7 @@ declTypeDef = do
 
 -- | Parser de declaraciones
 decl :: P (SDecl STerm)
-decl = declLet <|> declTypeDef
+decl = try declLet <|> declTypeDef
 
 
 -- | Parser de programas (listas de declaraciones) 
