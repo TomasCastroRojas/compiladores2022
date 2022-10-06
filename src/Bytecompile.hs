@@ -70,17 +70,17 @@ pattern FUNCTION = 4
 pattern CALL     = 5
 pattern ADD      = 6
 pattern SUB      = 7
+pattern JUMP     = 8
 pattern FIX      = 9
 pattern STOP     = 10
 pattern SHIFT    = 11
 pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
-
 -- CJUMP i salta i posiciones del bytecode si el tope de la pila es 0
 -- JUMP i salta i posiciones del bytecode
-pattern JUMP     = 15
-pattern CJUMP     = 16
+pattern CJUMP     = 15
+pattern TAILCALL = 16
 
 --función util para debugging: muestra el Bytecode de forma más legible.
 showOps :: Bytecode -> [String]
@@ -103,6 +103,7 @@ showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
                            in ("PRINT " ++ show (bc2string msg)) : showOps xs
 showOps (PRINTN:xs)      = "PRINTN" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
+-- showOPS (TAILCAIL:xs) = ...
 showOps (x:xs)           = show x : showOps xs
 
 showBC :: Bytecode -> String
@@ -139,7 +140,7 @@ bcc (Let info name ty def (Sc1 term)) = do
   return $ bc1 ++ [SHIFT] ++ bc2 ++ [DROP]
 
 bcc (Lam info name ty (Sc1 tterm)) = do
-  bc_body <- bcc tterm
+  bc_body <- tcc tterm
   return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN]
 bcc (Fix info _ _ _ _ (Sc2 term)) = do
   bc_body <- bcc term
@@ -160,7 +161,28 @@ bcc (IfZ info c t f) = do
   return $ bcC ++ [CJUMP, lenFalse + 2] ++ bcF ++ [JUMP, lenTrue] ++ bcT
 
 
+tcc :: MonadFD4 m => TTerm -> m Bytecode
+tcc (App info t1 t2) = do
+  t1' <- bcc t1
+  t2' <- bcc t2
+  return $ t1' ++ t2' ++ [TAILCALL]
 
+tcc (IfZ info tc tt tf) = do
+  c <- bcc tc
+  tt' <- tcc tt
+  tf' <- tcc tf
+  let lenTrue = length tt'
+  let lenFalse = length tf'
+  return $ c ++ [CJUMP, lenFalse + 2] ++ tf' ++ [JUMP, lenTrue] ++ tt'
+
+tcc (Let info name ty def (Sc1 term)) = do
+  def' <- bcc def
+  term' <- tcc term
+  return $ def' ++ [SHIFT] ++ term'
+
+tcc term = do
+  t' <- bcc term
+  return $ t' ++ [RETURN]
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.
