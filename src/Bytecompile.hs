@@ -17,7 +17,7 @@ module Bytecompile
 
 import Lang
 import Subst
-import MonadFD4
+import MonadFD4 ( printFD4, printFD4inline, lookupDecl, MonadFD4, failFD4 )
 
 import qualified Data.ByteString.Lazy as BS
 import Data.Binary ( Word32, Binary(put, get), decode, encode )
@@ -230,7 +230,7 @@ execVM (PRINTN:xs) e (I i:s) = do
   execVM xs e (I i:s)
 execVM (PRINT:xs) e s =
   let ls = map chr $ takeWhile (/= NULL) xs
-  in do printFD4 ls
+  in do printFD4inline ls
         execVM (drop (length ls + 1) xs) e s
 execVM (JUMP:j:xs) e s = execVM (drop j xs) e s
 execVM (CJUMP:j:xs) e ((I n):s) = case n of
