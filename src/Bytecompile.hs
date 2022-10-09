@@ -204,15 +204,15 @@ openModule (Decl p nm ty body: decls) = Let (p, getTy body) nm ty body (close nm
 -- Esta funcion es muy similar a tcc en los casos del IfZ y Let
 
 tss :: MonadFD4 m => TTerm -> m Bytecode
-tss (IfZ i x y z) = do x' <- bcc x  
-                       y' <- tss y
-                       z' <- tss z
-                       return (x' ++ [CJUMP] ++ [length y'] ++ y' ++ z')
-tss (Let i x xty y (Sc1 z)) = do y' <- bcc y
-                                 z' <- tss z
-                                 return (y' ++ [SHIFT] ++ z')
-tss x = do x' <- bcc x
-           return (x' ++ [STOP])
+tss (IfZ _ c tt tf) = do c' <- bcc c  
+                         tt' <- tss tt
+                         tf' <- tss tf
+                         return (c' ++ [CJUMP] ++ [length tt'] ++ tt' ++ tf')
+tss (Let _ _ _ def (Sc1 term)) = do def' <- bcc def
+                                    term' <- tss term
+                                    return (def' ++ [SHIFT] ++ term')
+tss t = do t' <- bcc t
+           return (t' ++ [STOP])
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule = tss <$> openModule
