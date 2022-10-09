@@ -1,3 +1,4 @@
+
 let mult (x:Nat)(y:Nat):Nat = let rec m (a:Nat)(b:Nat):Nat = ifz b then a else m (a+y) (b-1) in m 0 x
 
 let asd:Nat = mult 2 2
@@ -29,7 +30,7 @@ let y:Nat = print "id 3: " (id 3)
 let hola:Nat = let t (x:Nat):Nat = x + 10 in t 10
 let a:Nat = print "hola: " hola
 
-let test:Nat = let rec t (x:Nat):Nat = ifz x then 0 else 1 + (t (x-1)) in t 10
+let test:Nat = let rec t (x:Nat):Nat = ifz x then 0 else 1 + (t (x-1)) in t 5
 
 let p:Nat = print "test: " test
 -}
