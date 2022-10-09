@@ -201,10 +201,21 @@ openModule (Decl p nm ty body: decls) = Let (p, getTy body) nm ty body (close nm
 
 -- TODO: Funcion para compilar el termino evitando los DROPS al final
 --       Seria igual a tcc pero sin usar RETURN sino STOP
+-- Esta funcion es muy similar a tcc en los casos del IfZ y Let
+
+tss :: MonadFD4 m => TTerm -> m Bytecode
+tss (IfZ i x y z) = do x' <- bcc x  
+                       y' <- tss y
+                       z' <- tss z
+                       return (x' ++ [CJUMP] ++ [length y'] ++ y' ++ z')
+tss (Let i x xty y (Sc1 z)) = do y' <- bcc y
+                                 z' <- tss z
+                                 return (y' ++ [SHIFT] ++ z')
+tss x = do x' <- bcc x
+           return (x' ++ [STOP])
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
-bytecompileModule m = do bc <- bcc (openModule m) -- fix later
-                         return $ bc ++ [STOP]
+bytecompileModule = tss <$> openModule
   
 
 
