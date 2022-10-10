@@ -26,7 +26,6 @@ import Data.Binary.Get ( getWord32le, isEmpty )
 
 import Data.List (intercalate)
 import Data.Char
-import Common ( Pos(..) )
 
 type Opcode = Int
 type Bytecode = [Int]
@@ -77,8 +76,8 @@ pattern SHIFT    = 11
 pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
--- CJUMP i salta i posiciones del bytecode si el tope de la pila es 0
--- JUMP i salta i posiciones del bytecode
+-- CJUMP i salta i posiciones del bytecode si el tope de la pila es distinto de 0 (analogo a jnz)
+-- JUMP i salta i posiciones del bytecode (analogo a jmp)
 pattern CJUMP     = 15
 pattern TAILCALL = 16
 
@@ -88,22 +87,22 @@ showOps [] = []
 showOps (NULL:xs)        = "NULL" : showOps xs
 showOps (RETURN:xs)      = "RETURN" : showOps xs
 showOps (CONST:i:xs)     = ("CONST " ++  show i) : showOps xs
-showOps (ACCESS:i:xs)    = "ACCESS" : show i : showOps xs
-showOps (FUNCTION:i:xs)  = "FUNCTION" : show i : showOps xs
+showOps (ACCESS:i:xs)    = ("ACCESS " ++ show i) : showOps xs
+showOps (FUNCTION:i:xs)  = ("FUNCTION len=" ++ show i) : showOps xs
 showOps (CALL:xs)        = "CALL" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (SUB:xs)         = "SUB" : showOps xs
 showOps (FIX:xs)         = "FIX" : showOps xs
 showOps (STOP:xs)        = "STOP" : showOps xs
-showOps (JUMP:i:xs)      = "JUMP" : show i: showOps xs
-showOps (CJUMP:i:xs)      = "CJUMP" : show i: showOps xs
+showOps (JUMP:i:xs)      = ("JUMP off=" ++ show i) : showOps xs
+showOps (CJUMP:i:xs)     = ("CJUMP off=" ++ show i): showOps xs
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
                            in ("PRINT " ++ show (bc2string msg)) : showOps xs
 showOps (PRINTN:xs)      = "PRINTN" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
--- showOPS (TAILCAIL:xs) = ...
+showOps (TAILCALL:xs)    = "TAILCALL" : showOps xs
 showOps (x:xs)           = show x : showOps xs
 
 showBC :: Bytecode -> String
@@ -134,19 +133,19 @@ bcc (BinaryOp info Sub t1 t2) = do
   bc2 <- bcc t2
   return $ bc1 ++ bc2 ++ [SUB]
 
-bcc (Let info name ty def (Sc1 term)) = do
+bcc (Let _ _ _ def (Sc1 term)) = do
   bc1 <- bcc def
   bc2 <- bcc term
   return $ bc1 ++ [SHIFT] ++ bc2 ++ [DROP]
 
-bcc (Lam info name ty (Sc1 tterm)) = do
+bcc (Lam _ _ _ (Sc1 tterm)) = do
   bc_body <- tcc tterm
-  return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN]
+  return $ [FUNCTION, length bc_body] ++ bc_body
 bcc (Fix info _ _ _ _ (Sc2 term)) = do
-  bc_body <- bcc term
-  return $ [FUNCTION, length bc_body + 1] ++ bc_body ++ [RETURN, FIX]
+  bc_body <- tcc term
+  return $ [FUNCTION, length bc_body] ++ bc_body ++ [FIX]
 
-bcc (Print info str term) = do
+bcc (Print _ str term) = do
   bc <- bcc term
   return $ [PRINT] ++ string2bc str ++ [NULL] ++ bc ++ [PRINTN]
 
@@ -158,24 +157,23 @@ bcc (IfZ info c t f) = do
   bcF <- bcc f
   let lenTrue = length bcT
   let lenFalse = length bcF
-  return $ bcC ++ [CJUMP, lenFalse + 2] ++ bcF ++ [JUMP, lenTrue] ++ bcT
+  return $ bcC ++ [CJUMP, lenTrue + 2] ++ bcT ++ [JUMP, lenFalse] ++ bcF
 
 
 tcc :: MonadFD4 m => TTerm -> m Bytecode
-tcc (App info t1 t2) = do
+tcc (App _ t1 t2) = do
   t1' <- bcc t1
   t2' <- bcc t2
   return $ t1' ++ t2' ++ [TAILCALL]
 
-tcc (IfZ info tc tt tf) = do
+tcc (IfZ _ tc tt tf) = do
   c <- bcc tc
   tt' <- tcc tt
   tf' <- tcc tf
   let lenTrue = length tt'
-  let lenFalse = length tf'
-  return $ c ++ [CJUMP, lenFalse + 2] ++ tf' ++ [JUMP, lenTrue] ++ tt'
+  return $ c ++ [CJUMP, lenTrue] ++ tt' ++ tf'
 
-tcc (Let info name ty def (Sc1 term)) = do
+tcc (Let _ _ _ def (Sc1 term)) = do
   def' <- bcc def
   term' <- tcc term
   return $ def' ++ [SHIFT] ++ term'
@@ -183,6 +181,7 @@ tcc (Let info name ty def (Sc1 term)) = do
 tcc term = do
   t' <- bcc term
   return $ t' ++ [RETURN]
+
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.
@@ -192,31 +191,31 @@ string2bc = map ord
 bc2string :: Bytecode -> String
 bc2string = map chr
 
-onBody :: (TTerm -> TTerm) -> Decl TTerm -> Decl TTerm
-onBody f (Decl d name ty body) = Decl d name ty (f body)
-
 glb2free :: Name -> TTerm -> TTerm
 glb2free name = varChangerGlobal  (\v p n -> if n == name then V p (Free n) else V p (Global n))
 
 openModule :: Module -> TTerm
-openModule = foldr (\d om ->
-                            let nm = declName d in
-                            Let (NoPos, NatTy) nm (declTy d) (declBody d) (close nm $ glb2free nm om))
-                         (Const (NoPos, NatTy) (CNat 0))
+openModule []                         = error "Modulo vacio" 
+openModule [Decl p nm ty body]        = body
+openModule (Decl p nm ty body: decls) = Let (p, getTy body) nm ty body (close nm $ glb2free nm $ openModule decls)
+
+-- TODO: Funcion para compilar el termino evitando los DROPS al final
+--       Seria igual a tcc pero sin usar RETURN sino STOP
+-- Esta funcion es muy similar a tcc en los casos del IfZ y Let
+
+tss :: MonadFD4 m => TTerm -> m Bytecode
+tss (IfZ _ c tt tf) = do c' <- bcc c  
+                         tt' <- tss tt
+                         tf' <- tss tf
+                         return (c' ++ [CJUMP] ++ [length tt'] ++ tt' ++ tf')
+tss (Let _ _ _ def (Sc1 term)) = do def' <- bcc def
+                                    term' <- tss term
+                                    return (def' ++ [SHIFT] ++ term')
+tss t = do t' <- bcc t
+           return (t' ++ [STOP])
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
-{-
-bytecompileModule [] = return [STOP]
-bytecompileModule ((Decl _ name _ body):xs) = do
-  bcBody <- bcc body
-  let xs' = map (onBody (glb2free name)) xs
-  let xs'' = map (onBody ((\(Sc1 term) -> term). close name)) xs'
-  prog <- bytecompileModule xs''
-  return $ bcBody ++ [SHIFT] ++ prog
--}
-
-bytecompileModule m = do bc <- bcc (openModule m)
-                         return $ bc ++ [STOP]
+bytecompileModule = tss <$> openModule
   
 
 
@@ -237,30 +236,26 @@ runBC bc = do execVM bc [] []
 
 execVM :: MonadFD4 m => Bytecode -> [Val] -> [Val] -> m ()
 execVM [] _ _ = error "Codigo vacio"
-execVM (STOP:xs) _ _ = return ()
-execVM (CONST:n:xs) e s = execVM xs e (I n:s)
-execVM (ADD:xs) e (I n:I m:s) = execVM xs e (I (n+m):s)
-execVM (SUB:xs) e (I n:I m:s) = execVM xs e (I (max 0 (m-n)):s)
-execVM (ACCESS:n:xs) e s = execVM xs e ((e !! n):s)
-execVM (CALL:xs) e (v:Fun e' bc: s) = execVM bc (v:e') (RA e xs:s)
-execVM (FUNCTION:len:xs) e s = execVM (drop len xs) e (Fun e (take len xs):s)
-execVM (RETURN:xs) _ (val: RA e' c:s) = execVM c e' (val:s)
-execVM (SHIFT:xs) e (val:s) = execVM xs (val:e) s
-execVM (DROP:xs) (val:e) s = execVM xs e s
-execVM (PRINTN:xs) e (I i:s) = do
-  printFD4 (show i)
-  execVM xs e (I i:s)
-execVM (PRINT:xs) e s =
-  let ls = map chr $ takeWhile (/= NULL) xs
-  in do printFD4inline ls
-        execVM (drop (length ls + 1) xs) e s
-execVM (JUMP:j:xs) e s = execVM (drop j xs) e s
-execVM (CJUMP:j:xs) e ((I n):s) = case n of
-  0 -> execVM (drop j xs) e s
-  _ -> execVM xs e s
-execVM (FIX:xs) e ((Fun ef bc):s) =
-  let efix = Fun efix bc: e
-  in execVM xs e (Fun efix bc:s)
+execVM (STOP:xs) _ _                 = return ()
+execVM (CONST:n:xs) e s              = execVM xs e (I n:s)
+execVM (ADD:xs) e (I n:I m:s)        = execVM xs e (I (n+m):s)
+execVM (SUB:xs) e (I n:I m:s)        = execVM xs e (I (max 0 (m-n)):s)
+execVM (ACCESS:n:xs) e s             = execVM xs e ((e !! n):s)
+execVM (CALL:xs) e (v:Fun e' bc: s)  = execVM bc (v:e') (RA e xs:s)
+execVM (FUNCTION:len:xs) e s         = execVM (drop len xs) e (Fun e (take len xs):s)
+execVM (RETURN:_) _ (val: RA e' c:s) = execVM c e' (val:s)
+execVM (SHIFT:xs) e (val:s)          = execVM xs (val:e) s
+execVM (DROP:xs) (val:e) s           = execVM xs e s
+execVM (PRINTN:xs) e s@(I i:s')      = printFD4 (show i) >> execVM xs e s
+execVM (PRINT:xs) e s                = let (str,_:rest) = span (/= NULL) xs
+                                       in printFD4inline (bc2string str) >> execVM rest e s
+execVM (JUMP:j:xs) e s               = execVM (drop j xs) e s
+execVM (CJUMP:j:xs) e ((I n):s)      = case n of
+                                        0 -> execVM xs e s
+                                        _ -> execVM (drop j xs) e s
+execVM (FIX:xs) e ((Fun ef bc):s)    = let efix = Fun efix bc:e 
+                                       in execVM xs e (Fun efix bc:s)
+execVM (TAILCALL:xs) e (v: Fun e' c': s) = execVM c' (v:e') s 
 
 execVM xs e s = do
   printFD4 (showBC xs)

@@ -81,20 +81,17 @@ elab' env (SLet _ p [(name, ty)] def body) = do
   body' <- elab' (name:env) body
   return $ Let p name ty' def' (close name body')
 elab' env (SLet False p ((v,rty):xs) def body) = do
-  def' <- elab' (getVars xs ++ env) (SLam p xs def)
+  def' <- elab' env (SLam p xs def)
   rty' <- elabTy $ buildFunTy xs rty
-  Let p v rty' def' . close v <$> elab' (v:env) body
+  body' <- elab' (v:env) body
+  return $ Let p v rty' def' (close v body')
 
 elab' env (SLet True p ((f,rty):xs) def body) =
   let rty' = buildFunTy xs rty in do
-    def' <- elab' env (SFix p (f,rty) xs def)
-    ty <- elabTy rty'
-    body' <- elab' (f : env) body
-    return $ Let p f ty def' (close f body')
-
-
-getVars :: [(Name, STy)] -> [Name]
-getVars = map fst
+  def' <- elab' env (SFix p (f,rty') xs def)
+  ty <- elabTy rty'
+  body' <- elab' (f : env) body
+  return $ Let p f ty def' (close f body')
 
 elabTy :: MonadFD4 m => STy -> m Ty
 elabTy SNatTy = return NatTy
