@@ -194,8 +194,15 @@ void run(code init_c)
 		/* Consumimos un opcode y lo inspeccionamos. */
 		switch(*c++) {
 		case ACCESS: {
-			/* implementame */
-			abort();
+			uint32_t index = *c++;
+			env current = e;
+			for (; index > 0 && current != NULL; index--) 
+			{
+				current = current->next;
+			}
+
+			(*s++) = current->v;
+			break;
 		}
 
 		case CONST: {
@@ -268,8 +275,13 @@ void run(code init_c)
 		}
 
 		case TAILCALL: {
-			/* implementame */
-			abort();
+			value val = *--s;
+			value fun = *--s;
+
+			c = fun.clo.clo_body;
+			e = env_push(fun.clo.clo_env, val);
+
+			break;
 		}
 
 		case FUNCTION: {
@@ -325,13 +337,13 @@ void run(code init_c)
 		}
 
 		case SHIFT: {
-			/* implementame */
-			abort();
+			e = env_push(e, (*--s));
+			break;
 		}
 
 		case DROP: {
-			/* implementame */
-			abort();
+			e = e->next;
+			break;
 		}
 
 		case PRINTN: {
@@ -345,6 +357,19 @@ void run(code init_c)
 			while ((wc = *c++))
 				putwchar(wc);
 
+			break;
+		}
+
+		case JUMP: {
+			c += *c++;
+			break;
+		}
+
+		case CJUMP:  {
+			uint32_t cond = (*--s).i;
+			uint32_t len = *c++;
+			if(cond == 0) ;
+			else c += len;
 			break;
 		}
 
