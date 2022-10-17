@@ -1,23 +1,28 @@
 
+
+
 let mult (x:Nat)(y:Nat):Nat = let rec m (a:Nat)(b:Nat):Nat = ifz b then a else m (a+y) (b-1) in m 0 x
 
 let asd:Nat = mult 2 2
 
 let a:Nat = print "mult: " asd
 
-{-
-let rec fact (x:Nat):Nat = ifz x then 1 else mult x (fact (n-1))
+let rec fact (x:Nat):Nat = ifz x then 1 else mult x (fact (x-1))
 
 let fa:Nat = fact 6
 let j:Nat = print "fac:" fa
-
+{-
 let x : Nat = print "" 1
 let y : Nat = print "" (x+x)
 let z:Nat = print ""(x +y)
+-}
+{-
+let h:Nat = ifz 1 then print "true: " 5 else print "false: " 3
 
-let f (x:Nat):Nat = ifz x then print "true:" 5 else print "false: " 0
+let f (x:Nat):Nat = ifz x then print "true: " 5 else print "false: " 0
 
-let y:Nat = print "suma" (f 0)
+let c:Nat = print "suma " (f 0)
+
 
 let rec id (x:Nat):Nat = ifz x then 0 else 1 + (id (x-1))
 
@@ -25,12 +30,12 @@ let t:Nat = print "id 0: " (id 0)
 
 let r:Nat = print "id 1: " (id 1)
 
-let y:Nat = print "id 3: " (id 3)
+let b:Nat = print "id 3: " (id 3)
 
 let hola:Nat = let t (x:Nat):Nat = x + 10 in t 10
-let a:Nat = print "hola: " hola
+let d:Nat = print "hola: " hola
 
 let test:Nat = let rec t (x:Nat):Nat = ifz x then 0 else 1 + (t (x-1)) in t 5
 
-let p:Nat = print "test: " test
--}
+let p:Nat = print "test: " test-}
+

@@ -43,4 +43,4 @@ let min = fun(f: Nat -> Nat) -> (fix(min': Nat -> Nat) (n: Nat) ->
 
 let asd:Nat = mult 1 2
 let fa:Nat = fact 6
-let j:Nat = print "fac:" fa
+let j:Nat = print "fac:" asd
