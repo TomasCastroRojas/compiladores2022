@@ -99,7 +99,7 @@ showOps (CJUMP:i:xs)     = ("CJUMP off=" ++ show i): showOps xs
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
-                           in ("PRINT " ++ show (bc2string msg)) : showOps xs
+                           in ("PRINT " ++ show (bc2string msg)) : showOps rest
 showOps (PRINTN:xs)      = "PRINTN" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (TAILCALL:xs)    = "TAILCALL" : showOps xs
