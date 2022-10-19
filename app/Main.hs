@@ -38,6 +38,7 @@ import MonadFD4
 import TypeChecker ( tc, tcDecl )
 import CEK (runCEK, val2tterm)
 import Bytecompile
+import Opt (optimize)
 
 prompt :: String
 prompt = "FD4> "
@@ -192,10 +193,10 @@ handleDecl d = do
               SDecl {} -> do
                 d' <- elabDecl d
                 td <- typecheckDecl d'
-                addDecl td
-                -- opt <- getOpt
-                -- td' <- if opt then optimize td else td
-                ppterm <- ppDecl td  --td'
+                opt <- getOpt
+                td' <- if opt then optimize td else return td
+                addDecl td'
+                ppterm <- ppDecl td'
                 printFD4 ppterm
               SDeclSTy p n sty -> do
                 ty <- elabTy sty
