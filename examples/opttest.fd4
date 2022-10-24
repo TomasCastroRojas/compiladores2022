@@ -1,3 +1,7 @@
-let x:Nat = let y:Nat = 5 in y + 5
+{-let x:Nat = let y:Nat = 5 in y + 5
 
-let x:Nat = let y:Nat = 5 in ifz (let z:Nat = 0 in z) then y else 3
+let a:Nat = let b:Nat = 5 in ifz (let z:Nat = 1 in z) then b else 3+3-}
+
+let ff:Nat = 
+  #let func (x:Nat):Nat = x + 1 in func 10
+  (fun (x:Nat) -> x + 1) 10
