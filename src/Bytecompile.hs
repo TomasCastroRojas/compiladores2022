@@ -1,5 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|
 Module      : Bytecompile
 Description : Compila a bytecode. Ejecuta bytecode.
@@ -216,7 +217,6 @@ tss t = do t' <- bcc t
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule = tss <$> openModule
-  
 
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
