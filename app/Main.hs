@@ -119,7 +119,7 @@ bytecompile f = do
   decls <- loadFile f
   dec <- mapM handle decls
   bc <- bytecompileModule (concat dec)
-  printFD4 (showBC bc)
+  --printFD4 (showBC bc)
   liftIO $ bcWrite bc (takeWhile (/= '.') f ++ ".bc")
   return ()
 
