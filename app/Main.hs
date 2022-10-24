@@ -125,7 +125,9 @@ handle :: MonadFD4 m => SDecl STerm -> m [Decl TTerm]
 handle d = case d of
               SDecl {} -> do
                 d' <- elabDecl d
-                dec@(Decl p n ty tt) <- tcDecl d'
+                td <- tcDecl d'
+                opt <- getOpt
+                dec <- if opt then optimize td else return td
                 addDecl dec
                 return [dec]
               SDeclSTy p n sty -> do
@@ -170,7 +172,9 @@ handleDecl d = do
             case d of
               SDecl {} -> do
                 d' <- elabDecl d
-                (Decl p n ty tt) <- tcDecl d'
+                td <- tcDecl d'
+                opt <- getOpt
+                (Decl p n ty tt) <- if opt then optimize td else return td
                 tcek <- runCEK tt
                 addDecl (Decl p n ty (val2tterm tcek))
               SDeclSTy p n sty -> do
@@ -180,7 +184,9 @@ handleDecl d = do
             case d of
               SDecl {} -> do
                 d' <- elabDecl d
-                (Decl p n ty tt) <- tcDecl d'
+                td <- tcDecl d'
+                opt <- getOpt
+                (Decl p n ty tt) <- if opt then optimize td else return td
                 te <- eval tt
                 addDecl (Decl p n ty te)
               SDeclSTy p n sty -> do
@@ -192,7 +198,7 @@ handleDecl d = do
             case d of
               SDecl {} -> do
                 d' <- elabDecl d
-                td <- typecheckDecl d'
+                td <- tcDecl d'
                 opt <- getOpt
                 td' <- if opt then optimize td else return td
                 addDecl td'
@@ -201,10 +207,6 @@ handleDecl d = do
               SDeclSTy p n sty -> do
                 ty <- elabTy sty
                 addTypeSin (n, ty)
-
-      where
-        typecheckDecl :: MonadFD4 m => Decl Term -> m (Decl TTerm)
-        typecheckDecl (Decl p x ty t) = tcDecl (Decl p x ty t)
 
 
 data Command = Compile CompileForm
