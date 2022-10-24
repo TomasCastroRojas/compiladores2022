@@ -34,6 +34,7 @@ typeSinsEnv = typeSins
 data Mode =
     Interactive
   | Typecheck
+  | Eval
   | InteractiveCEK
   | Bytecompile
   | RunVM

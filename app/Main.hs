@@ -53,6 +53,7 @@ parseMode = (,) <$>
      <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
      <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
      <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
+     <|> flag Eval        Eval        (long "eval" <> short 'e' <> help "Evaluar programa")
   -- <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
   -- <|> flag' Canon ( long "canon" <> short 'n' <> help "Imprimir canonicalización")
   -- <|> flag' Assembler ( long "assembler" <> short 'a' <> help "Imprimir Assembler resultante")
@@ -95,6 +96,7 @@ runOrFail c m = do
 
 repl :: (MonadFD4 m, MonadMask m) => [FilePath] -> InputT m ()
 repl args = do
+       lift $ setInter True
        lift $ catchErrors $ mapM_ compileFile args
        s <- lift get
        when (inter s) $ liftIO $ putStrLn
@@ -154,7 +156,7 @@ compileFile ::  MonadFD4 m => FilePath -> m ()
 compileFile f = do
     i <- getInter
     setInter False
-    printFD4 ("Abriendo "++f++"...")
+    when i $ printFD4 ("Abriendo "++f++"...")
     decls <- loadFile f
     mapM_ handleDecl decls
     setInter i
