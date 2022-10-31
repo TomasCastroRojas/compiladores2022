@@ -4,7 +4,6 @@ import MonadFD4
 import Lang
 import Eval (semOp)
 import Subst (subst, open, close, open2, close2)
-import Control.Monad
 
 maxOpt :: Int
 maxOpt = 10
@@ -30,18 +29,14 @@ deadCode (IfZ i (Const i' (CNat 0)) t1 t2) = deadCode t1
 deadCode (IfZ i (Const i' (CNat n)) t1 t2) = deadCode t2
 deadCode t = return t
 
-inline :: MonadFD4 m => TTerm -> m TTerm
-inline  (App i (Lam i' name ty scope) nat@(Const i'' c)) = do
-    printFD4 "hola"
-    return $ subst nat scope
-inline  (App i (Lam i' name ty scope) t) = return (Let i name ty t scope)
-inline t = do
-    printFD4 "Chau"
-    return t
+betaRedex :: MonadFD4 m => TTerm -> m TTerm
+betaRedex  (App i (Lam i' name ty scope) t) = return (Let i name ty t scope)
+betaRedex t = return t
 
-freshen :: [Name] -> Name -> Name
-freshen ns n = let cands = n : map (\i -> n ++ show i) [0..] 
-               in head (filter (`notElem` ns) cands)
+inline :: MonadFD4 m => TTerm -> m TTerm
+inline (Let i name ty t@(Lam i' name' ty' scope) body) = return $ subst t body 
+inline t = return t
+
 
 
 visit :: MonadFD4 m => (TTerm -> m TTerm) -> TTerm -> [Name] -> m TTerm
@@ -50,7 +45,7 @@ visit f (Const i c) ns = return $ Const i c
 
 visit f (Lam i name ty t) ns = do
     let n' = freshen ns name
-    t' <- visit f (open n' t) ns
+    t' <- visit f (open n' t) (n':ns)
     f (Lam i name ty (close n' t'))
 
 
@@ -70,8 +65,8 @@ visit f (BinaryOp i op t1 t2) ns = do
 
 visit f (Fix i n1 t1 n2 t2 term) ns = do
     let n1' = freshen ns n1
-    let n2' = freshen ns n2 
-    term' <- visit f (open2 n1' n2' term) ns
+    let n2' = freshen (n1':ns) n2 
+    term' <- visit f (open2 n1' n2' term) (n2':n1':ns)
     f (Fix i n1 t1 n2 t2 (close2 n1' n2' term'))
 
 visit f (IfZ info tc tt tf) ns = do
@@ -83,7 +78,7 @@ visit f (IfZ info tc tt tf) ns = do
 visit f (Let i n ty def t) ns = do
     def' <- visit f def ns
     let n' = freshen ns n
-    body' <- visit f (open n' t) ns
+    body' <- visit f (open n' t) (n':ns)
     f (Let i n ty def' (close n' body'))
 
 {-
@@ -104,7 +99,7 @@ br = visit br1 where
 
 optimizeN :: MonadFD4 m => Int -> TTerm -> m TTerm
 optimizeN 0 t = return t
-optimizeN n t = visit (constantPropagation >=> constantFolding >=> deadCode >=> inline) t [] >>= optimizeN (n-1)
+optimizeN n t = visit (constantPropagation >=> constantFolding >=> deadCode >=> betaRedex >=> inline) t [] >>= optimizeN (n-1)
 
 optimize :: MonadFD4 m => Decl TTerm -> m (Decl TTerm)
 optimize (Decl p n ty tt) = Decl p n ty <$> optimizeN maxOpt tt
