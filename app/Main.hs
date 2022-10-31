@@ -209,6 +209,18 @@ handleDecl d = do
               SDeclSTy p n sty -> do
                 ty <- elabTy sty
                 addTypeSin (n, ty)
+          Eval -> do
+            case d of
+              SDecl {} -> do
+                d' <- elabDecl d
+                td <- tcDecl d'
+                opt <- getOpt
+                (Decl p n ty tt) <- if opt then optimize td else return td
+                te <- eval tt
+                addDecl (Decl p n ty te)
+              SDeclSTy p n sty -> do
+                ty <- elabTy sty
+                addTypeSin (n, ty)
 
 
 data Command = Compile CompileForm
