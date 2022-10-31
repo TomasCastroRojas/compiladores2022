@@ -179,3 +179,7 @@ freeVars tm = nubSort $ go tm [] where
   go (Let _ _ _ e (Sc1 t)     ) xs = go e (go t xs)
 
 type Module = [Decl TTerm]
+
+freshen :: [Name] -> Name -> Name
+freshen ns n = let cands = n : map (\i -> n ++ show i) [0..] 
+               in head (filter (`notElem` ns) cands)

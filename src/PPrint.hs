@@ -38,10 +38,6 @@ import Prettyprinter
 import MonadFD4 ( gets, MonadFD4, failFD4 )
 import Global ( GlEnv(glb) )
 
-freshen :: [Name] -> Name -> Name
-freshen ns n = let cands = n : map (\i -> n ++ show i) [0..] 
-               in head (filter (`notElem` ns) cands)
-
 -- | 'openAll' convierte términos locally nameless
 -- a términos fully named abriendo todos las variables de ligadura que va encontrando
 -- Debe tener cuidado de no abrir términos con nombres que ya fueron abiertos.
