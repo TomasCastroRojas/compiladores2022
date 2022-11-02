@@ -54,7 +54,7 @@ parseMode = (,) <$>
      <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
      <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
      <|> flag Eval        Eval        (long "eval" <> short 'e' <> help "Evaluar programa")
-  -- <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
+     <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
   -- <|> flag' Canon ( long "canon" <> short 'n' <> help "Imprimir canonicalización")
   -- <|> flag' Assembler ( long "assembler" <> short 'a' <> help "Imprimir Assembler resultante")
   -- <|> flag' Build ( long "build" <> short 'b' <> help "Compilar")
@@ -82,6 +82,8 @@ main = execParser opts >>= go
               runOrFail (Conf opt Bytecompile) $ mapM_ bytecompile files
     go (RunVM, opt, files) =
               runOrFail (Conf opt RunVM) $ mapM_ runVM files
+    go (CC, opt, files) = 
+              runOrFail (Conf opt CC) $ mapM_ compileC files
     go (m,opt, files) =
               runOrFail (Conf opt m) $ mapM_ compileFile files
 
@@ -141,6 +143,12 @@ runVM :: MonadFD4 m => FilePath -> m ()
 runVM f = do
   bc <- liftIO $ bcRead f
   runBC bc
+
+compileC :: MonadFD4 m => FilePath -> m()
+compileC f = do
+  decls <- loadFile f
+
+  return ()
 
 loadFile ::  MonadFD4 m => FilePath -> m [SDecl STerm]
 loadFile f = do
