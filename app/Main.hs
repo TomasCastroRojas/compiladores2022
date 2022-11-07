@@ -39,6 +39,9 @@ import TypeChecker ( tc, tcDecl )
 import CEK (runCEK, val2tterm)
 import Bytecompile
 import Opt (optimize)
+import ClosureConvert (runCC)
+import C (ir2C)
+import IR
 
 prompt :: String
 prompt = "FD4> "
@@ -147,7 +150,11 @@ runVM f = do
 compileC :: MonadFD4 m => FilePath -> m()
 compileC f = do
   decls <- loadFile f
-
+  dec <- mapM handle decls
+  cc <- runCC (concat dec)
+  let prog = ir2C (IrDecls cc)
+  printFD4 prog
+  liftIO $  writeFile (takeWhile (/= '.') f ++ ".c") prog
   return ()
 
 loadFile ::  MonadFD4 m => FilePath -> m [SDecl STerm]
