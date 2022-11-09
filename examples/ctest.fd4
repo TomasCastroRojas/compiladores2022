@@ -1,8 +1,23 @@
-
+{-
 let f (x : Nat): Nat = x
 
 let a:Nat = print "Id: " (f 1 )
 
-let suma (x : Nat) : Nat -> Nat = fun (y : Nat) -> x+y
+let suma (z : Nat) : Nat -> Nat = fun (y : Nat) -> z+y
 
 let res:Nat = print "Suma: " (suma 3 5)
+-}
+let rec id (x:Nat):Nat = ifz x then 0 else 1 + (id (x-1))
+let idRes:Nat = print "ID(6): " (id 6)
+
+
+
+let mult (x:Nat)(y:Nat):Nat = let rec m (a:Nat)(b:Nat):Nat = ifz b then a else m (a+y) (b-1) in m 0 x
+
+
+let res1:Nat = print "Mult " (mult 4 102)
+
+let rec fact (x:Nat):Nat = ifz x then 1 else mult x (fact (x-1))
+
+let fa:Nat = fact 55
+let j:Nat = print "fac:" fa
