@@ -13,7 +13,7 @@ varName :: MonadFD4 m => Name -> StateT Int (WriterT [IrDecl] m) Name
 varName prefix = do
     n <- get
     put (n+1)
-    return (prefix ++ "_" ++ (show n))
+    return (prefix ++ show n)
 
 var2ir :: Var -> Ir
 var2ir (Free name) = IrVar name
@@ -67,7 +67,7 @@ closureConvert (Let i n ty def body) = do
 closureConvert t@(Lam i n ty body@(Sc1 b)) = do
     nombreFuncion <- varName "f"
     nombreArg <- varName n
-    let body' = open nombreArg body -- se llama a la función dentro de body donde antes había (Bound 0)
+    let body' = open nombreArg body -- se llama al argumento dentro de body donde antes había (Bound 0)
     body'' <- closureConvert body'
 
     let fv = freeVarsTy b
@@ -79,7 +79,22 @@ closureConvert t@(Lam i n ty body@(Sc1 b)) = do
     let cuerpo = args2vars fv body'' closure
     let tipoRetorno = ty2IrTy ty
 
-    let args = map (\(name, vty) -> (name, ty2IrTy vty)) fv
+    let decl = IrFun nombreFuncion tipoRetorno [(closure, IrClo), (nombreArg, IrInt)] cuerpo
+    tell [decl]
+
+    return $ MkClosure nombreFuncion $ map (IrVar . fst) fv
+
+closureConvert t@(Fix i fn fty vn vty body@(Sc2 b)) = do
+    nombreFuncion <- varName ("fix_" ++ fn)
+    nombreArg <- varName vn
+    closure <- varName (nombreFuncion ++ "clos")
+    let body' = open2 closure nombreArg body
+    body'' <- closureConvert body'
+
+    let fv = freeVarsTy b
+
+    let cuerpo = args2vars fv body'' closure
+    let tipoRetorno = ty2IrTy fty
 
     let decl = IrFun nombreFuncion tipoRetorno [(closure, IrClo), (nombreArg, IrInt)] cuerpo
     tell [decl]
@@ -94,11 +109,12 @@ closureConvert (App info t1 t2) = do
 
 
 runCC :: MonadFD4 m => [Decl TTerm] -> m [IrDecl]
-runCC [] = return []
-runCC list@(dec@(Decl pos name ty body):xs) = do
-    ((ir, i), ls) <- runWriterT $ runStateT (closureConvert body) 0
+runCC = runCC' 0
+
+runCC' :: MonadFD4 m => Int -> [Decl TTerm] -> m [IrDecl]
+runCC' _ [] = return []
+runCC' s list@(dec@(Decl pos name ty body):xs) = do
+    ((ir, i), ls) <- runWriterT $ runStateT (closureConvert body) s
     let newDecl = IrVal name (ty2IrTy ty) ir
-    tl <- runCC xs
+    tl <- runCC' (i + 1) xs
     return $ newDecl : ls ++ tl
-
-
