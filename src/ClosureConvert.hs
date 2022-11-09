@@ -65,8 +65,9 @@ closureConvert (Let i n ty def body) = do
     return $ IrLet n irty def' body'
 
 closureConvert t@(Lam i n ty body@(Sc1 b)) = do
-    nombreFuncion <- varName n
-    let body' = open nombreFuncion body -- se llama a la función dentro de body donde antes había (Bound 0)
+    nombreFuncion <- varName "f"
+    nombreArg <- varName n
+    let body' = open nombreArg body -- se llama a la función dentro de body donde antes había (Bound 0)
     body'' <- closureConvert body'
 
     let fv = freeVarsTy b
@@ -80,7 +81,7 @@ closureConvert t@(Lam i n ty body@(Sc1 b)) = do
 
     let args = map (\(name, vty) -> (name, ty2IrTy vty)) fv
 
-    let decl = IrFun nombreFuncion tipoRetorno [(closure, IrClo), (nombreFuncion, IrInt)] cuerpo
+    let decl = IrFun nombreFuncion tipoRetorno [(closure, IrClo), (nombreArg, IrInt)] cuerpo
     tell [decl]
 
     return $ MkClosure nombreFuncion $ map (IrVar . fst) fv
