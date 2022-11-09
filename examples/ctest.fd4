@@ -1,0 +1,8 @@
+
+let f (x : Nat): Nat = x
+
+let a:Nat = print "Id: " (f 1 )
+
+let suma (x : Nat) : Nat -> Nat = fun (y : Nat) -> x+y
+
+let res:Nat = print "Suma: " (suma 3 5)
