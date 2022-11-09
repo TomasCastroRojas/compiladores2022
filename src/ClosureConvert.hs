@@ -80,10 +80,10 @@ closureConvert t@(Lam i n ty body@(Sc1 b)) = do
 
     let args = map (\(name, vty) -> (name, ty2IrTy vty)) fv
 
-    let decl = IrFun nombreFuncion tipoRetorno ((closure, IrClo): args) cuerpo
+    let decl = IrFun nombreFuncion tipoRetorno [(closure, IrClo), (nombreFuncion, IrInt)] cuerpo
     tell [decl]
 
-    return $ MkClosure nombreFuncion $ map (IrVar . fst) args
+    return $ MkClosure nombreFuncion $ map (IrVar . fst) fv
 
 closureConvert (App info t1 t2) = do
     clos <- closureConvert t1
