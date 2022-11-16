@@ -79,8 +79,8 @@ main = execParser opts >>= go
     go :: (Mode,Bool,[FilePath]) -> IO ()
     go (Interactive,opt,files) =
               runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
-    go (InteractiveCEK, opt, files) =
-              runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
+    --go (InteractiveCEK, opt, files) =
+      --        runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
     go (Bytecompile, opt, files) =
               runOrFail (Conf opt Bytecompile) $ mapM_ bytecompile files
     go (RunVM, opt, files) =
@@ -124,7 +124,7 @@ bytecompile f = do
   decls <- loadFile f
   dec <- mapM handle decls
   bc <- bytecompileModule (concat dec)
-  -- printFD4 (showBC bc) -- Debugging
+  printFD4 (showBC bc) -- Debugging
   liftIO $ bcWrite bc (takeWhile (/= '.') f ++ ".bc")
   return ()
 
