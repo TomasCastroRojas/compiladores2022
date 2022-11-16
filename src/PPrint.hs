@@ -11,7 +11,7 @@ Stability   : experimental
 -}
 
 module PPrint (
-    pp,
+    pp, ppu,
     ppTy,
     ppName,
     ppDecl,
@@ -28,6 +28,7 @@ import Prettyprinter.Render.Terminal
 import Prettyprinter
     ( (<+>),
       annotate,
+      unAnnotate,
       defaultLayoutOptions,
       layoutSmart,
       nest,
@@ -204,6 +205,13 @@ bindings2doc [] = mempty
 bindings2doc [(x, ty)] = binding2doc (x, ty)
 binding2sdoc [(x, ty):tl] =
   parens (sep $ [name2doc x, pretty ":", sty2doc ty] ++ [bindings2doc tl])
+
+ppu :: MonadFD4 m => TTerm -> m String
+-- Uncomment to use the Show instance for Term
+{- pp = show -}
+ppu t = do
+       gdecl <- gets glb
+       return (render . unAnnotate $ t2doc False $ openAll fst (map declName gdecl) t)
 
 -- | Pretty printing de términos (String)
 pp :: MonadFD4 m => TTerm -> m String
