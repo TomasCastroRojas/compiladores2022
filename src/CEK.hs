@@ -3,9 +3,10 @@ module CEK  where
 
 import Lang
 import MonadFD4
-import TypeChecker
 import Subst
 import Common
+
+import PPrint (ppu)
 
 data Val =
     VNat Int
@@ -55,7 +56,8 @@ search (Let info name ty tx (Sc1 tt)) p k = search tx p (KLet p name tt:k)
 
 
 destroy :: MonadFD4 m => Val -> Kont -> m Val
-destroy val ((KPrint str):ktl) = do printFD4 (str ++ show val)
+destroy val ((KPrint str):ktl) = do ppval <- ppu $ val2tterm val
+                                    printFD4 (str ++ ppval)
                                     destroy val ktl
 destroy n ((KOp1 op env term):ktl) = search term env (KOp2 op n:ktl)
 destroy (VNat n') ((KOp2 Add (VNat val)):ktl) = destroy (VNat (val + n')) ktl
