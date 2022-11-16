@@ -57,7 +57,8 @@ closureConvert (BinaryOp info op t1 t2) = do
     return $ IrBinaryOp op t1' t2'
 closureConvert (Print info s t) = do
     t' <- closureConvert t
-    return $ IrPrint s t'
+    printname <- varName "print"
+    return $ IrLet printname IrInt t' (IrPrint s (IrVar printname))
 closureConvert (Let i n ty def body) = do
     let irty = ty2IrTy ty
     def' <- closureConvert def
