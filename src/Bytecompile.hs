@@ -148,7 +148,7 @@ bcc (Fix info _ _ _ _ (Sc2 term)) = do
 
 bcc (Print _ str term) = do
   bc <- bcc term
-  return $ [PRINT] ++ string2bc str ++ [NULL] ++ bc ++ [PRINTN]
+  return $ bc ++ [PRINT] ++ string2bc str ++ [NULL] ++ [PRINTN]
 
 -- Si el tope de la pila es 0 salta el bytecode de false,
 -- sino ejecuta el false y salta el bytecode de true
