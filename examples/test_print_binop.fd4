@@ -1,0 +1,4 @@
+ 
+let x:Nat = (let x:Nat = 4) in x + (print "Mundo" 5)
+
+let _:Nat = print "X: " x
