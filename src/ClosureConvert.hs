@@ -61,9 +61,10 @@ closureConvert (Print info s t) = do
     return $ IrLet printname IrInt t' (IrPrint s (IrVar printname))
 closureConvert (Let i n ty def body) = do
     let irty = ty2IrTy ty
+    name <- varName n
     def' <- closureConvert def
-    body' <- closureConvert (open n body)
-    return $ IrLet n irty def' body'
+    body' <- closureConvert (open name body)
+    return $ IrLet name irty def' body'
 
 closureConvert t@(Lam i n ty body@(Sc1 b)) = do
     nombreFuncion <- varName "f"
