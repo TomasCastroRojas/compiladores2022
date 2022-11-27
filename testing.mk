@@ -1,6 +1,6 @@
-TESTDIRS += tests/ok/00-basicos
-TESTDIRS += tests/ok/10-sugar
-TESTDIRS += tests/ok/20-tysym
+#TESTDIRS += tests/ok/00-basicos
+#TESTDIRS += tests/ok/10-sugar
+#TESTDIRS += tests/ok/20-tysym
 TESTDIRS += tests/ok/30-otros
 
 TESTS	:= $(shell find $(TESTDIRS) -name '*.fd4' -type f | sort)
@@ -22,8 +22,8 @@ EXTRAFLAGS	:=
 CHECK	+= $(patsubst %,%.check_cek,$(TESTS))
 CHECK	+= $(patsubst %,%.check_bc_h,$(TESTS))
 CHECK	+= $(patsubst %,%.check_bc,$(TESTS))
-# CHECK	+= $(patsubst %,%.check_eval_opt,$(TESTS))
-# CHECK	+= $(patsubst %,%.check_opt,$(TESTS))
+CHECK	+= $(patsubst %,%.check_eval_opt,$(TESTS))
+CHECK	+= $(patsubst %,%.check_opt,$(TESTS))
 CHECK	+= $(patsubst %,%.check_c,$(TESTS))
 
 # Ejemplo: así se puede apagar un test en particular.
