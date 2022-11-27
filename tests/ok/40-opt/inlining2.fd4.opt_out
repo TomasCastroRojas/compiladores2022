@@ -1,0 +1,1 @@
+let test:Nat->Nat = fun (x:Nat) -> 2
