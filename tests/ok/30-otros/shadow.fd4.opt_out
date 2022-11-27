@@ -1,0 +1,4 @@
+let f = fun (x : Nat) ->
+  let (x0 : Nat) = (x + 1) + 2 in let (x1 : Nat) = x0 in x1
+
+let _ = print "" (f 17)

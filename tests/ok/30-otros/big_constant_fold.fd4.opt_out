@@ -1,0 +1,61 @@
+let x = let (x0 : Nat) =
+  512 + 512
+  in
+  let (x1 : Nat) =
+    x0 + x0
+    in
+    let (x2 : Nat) =
+      x1 + x1
+      in
+      let (x3 : Nat) =
+        x2 + x2
+        in
+        let (x4 : Nat) =
+          x3 + x3
+          in
+          let (x5 : Nat) =
+            x4 + x4
+            in
+            let (x6 : Nat) =
+              x5 + x5
+              in
+              let (x7 : Nat) =
+                x6 + x6
+                in
+                let (x8 : Nat) =
+                  x7 + x7
+                  in
+                  let (x9 : Nat) =
+                    x8 + x8
+                    in
+                    let (x10 : Nat) =
+                      x9 + x9
+                      in
+                      let (x11 : Nat) =
+                        x10 + x10
+                        in
+                        let (x12 : Nat) =
+                          x11 + x11
+                          in
+                          let (x13 : Nat) =
+                            x12 + x12
+                            in
+                            let (x14 : Nat) =
+                              x13 + x13
+                              in
+                              let (x15 : Nat) =
+                                x14 + x14
+                                in
+                                let (x16 : Nat) =
+                                  x15 + x15
+                                  in
+                                  let (x17 : Nat) =
+                                    x16 + x16
+                                    in
+                                    let (x18 : Nat) =
+                                      x17 + x17
+                                      in
+                                      let (x19 : Nat) =
+                                        x18 + x18
+                                        in
+                                        let (x20 : Nat) = x19 + x19 in x20
