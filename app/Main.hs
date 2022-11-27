@@ -211,7 +211,7 @@ handleDecl d = do
                 addTypeSin (n, ty)
           Typecheck -> do
             f <- getLastFile
-            printFD4 ("Chequeando tipos de "++f)
+            -- printFD4 ("Chequeando tipos de "++f)
             case d of
               SDecl {} -> do
                 d' <- elabDecl d
