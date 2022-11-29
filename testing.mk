@@ -1,8 +1,8 @@
 #TESTDIRS += tests/ok/00-basicos
 #TESTDIRS += tests/ok/10-sugar
 #TESTDIRS += tests/ok/20-tysym
-#TESTDIRS += tests/ok/30-otros
-TESTDIRS += tests/ok/40-opt
+TESTDIRS += tests/ok/30-otros
+#TESTDIRS += tests/ok/40-opt
 
 TESTS	:= $(shell find $(TESTDIRS) -name '*.fd4' -type f | sort)
 
@@ -55,6 +55,7 @@ endif
 # La _única_ salida que se acepta es la del --eval. Todos los demás
 # evaluadores/backends deben coincidir.
 accept: $(patsubst %,%.accept,$(TESTS))
+accept_opt: $(patsubst %,%.accept_opt,$(TESTS))
 
 # La otra salida esperada es la de las optimizaciones.
 # accept: $(patsubst %,%.accept_opt,$(TESTS))
