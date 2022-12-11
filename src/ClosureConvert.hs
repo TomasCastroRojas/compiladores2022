@@ -3,7 +3,6 @@
 {-# HLINT ignore "Use second" #-}
 module ClosureConvert where
 import IR
-import C
 import Lang
 import MonadFD4
 import Subst

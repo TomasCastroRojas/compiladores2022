@@ -52,7 +52,7 @@ prompt = "FD4> "
 parseMode :: Parser (Mode,Bool)
 parseMode = (,) <$>
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
-     <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
+     <|> flag' CEK (long "CEK" <> short 'k' <> help "Ejecutar en la CEK")
      <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
      <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
      <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
@@ -79,8 +79,6 @@ main = execParser opts >>= go
     go :: (Mode,Bool,[FilePath]) -> IO ()
     go (Interactive,opt,files) =
               runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
-    --go (InteractiveCEK, opt, files) =
-      --        runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
     go (Bytecompile, opt, files) =
               runOrFail (Conf opt Bytecompile) $ mapM_ bytecompile files
     go (RunVM, opt, files) =
@@ -185,7 +183,7 @@ handleDecl ::  MonadFD4 m => SDecl STerm -> m ()
 handleDecl d = do
         m <- getMode
         case m of
-          InteractiveCEK -> do
+          CEK -> do
             case d of
               SDecl {} -> do
                 d' <- elabDecl d

@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use <$>" #-}
 {-|
 Module      : Parse
 Description : Define un parser de términos FD40 a términos fully named.
@@ -14,7 +13,6 @@ module Parse (tm, Parse.parse, decl, runP, P, program, declOrTm) where
 
 import Prelude hiding ( const )
 import Lang hiding (getPos)
-import Global
 import Common
 import Text.Parsec hiding (runP,parse)
 --import Data.Char ( isNumber, ord )
@@ -46,7 +44,7 @@ langDef = emptyDef {
 whiteSpace :: P ()
 whiteSpace = Tok.whiteSpace lexer
 
-natural :: P Integer 
+natural :: P Integer
 natural = Tok.natural lexer
 
 stringLiteral :: P String
@@ -90,13 +88,13 @@ tyatom = (reserved "Nat" >> return SNatTy)
          <|> parens typeP
 
 typeP :: P STy
-typeP = try (do 
+typeP = try (do
           x <- tyatom
           reservedOp "->"
           y <- typeP
           return (SFunTy x y))
       <|> tyatom
-          
+
 const :: P Const
 const = CNat <$> num
 
@@ -105,8 +103,7 @@ printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  do  a <- atom
-      return (SPrint i str a)
+  do  SPrint i str <$> atom
       <|> return (SLam i [("x", SNatTy)] (SPrint i str (SV i "x")))
 
 
@@ -173,16 +170,15 @@ fix = do i <- getPos
          return (SFix i (f,fty) args t)
 
 letexp :: P STerm
-letexp = do
-  i <- getPos
-  reserved "let"
-  isRec <- (reserved "rec" >> return True) <|> return False
-  lst <- parseFunc
-  reservedOp "=" 
-  def <- expr
-  reserved "in"
-  body <- expr
-  return (SLet isRec i lst def body)
+letexp = do i <- getPos
+            reserved "let"
+            isRec <- (reserved "rec" >> return True) <|> return False
+            lst <- parseFunc
+            reservedOp "="
+            def <- expr
+            reserved "in"
+            body <- expr
+            return (SLet isRec i lst def body)
 
 -- parsea algo de la forma
 -- f (x1:T1) ... (nx:Tn) : Tr
@@ -196,12 +192,12 @@ parseFunc = do
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix  <|> letexp 
+tm = app <|> lam <|> ifz <|> printOp <|> fix  <|> letexp
 
 
 
 declLet :: P (SDecl STerm)
-declLet = do 
+declLet = do
   i <- getPos
   reservedOp "let"
   isRec <- (reserved "rec" >> return True) <|> return False

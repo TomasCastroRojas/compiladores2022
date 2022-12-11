@@ -206,6 +206,7 @@ bindings2doc [(x, ty)] = binding2doc (x, ty)
 binding2sdoc [(x, ty):tl] =
   parens (sep $ [name2doc x, pretty ":", sty2doc ty] ++ [bindings2doc tl])
 
+-- Dummy function para imprimir bien las salidas la maquina CEK
 ppu :: MonadFD4 m => TTerm -> m String
 -- Uncomment to use the Show instance for Term
 {- pp = show -}
