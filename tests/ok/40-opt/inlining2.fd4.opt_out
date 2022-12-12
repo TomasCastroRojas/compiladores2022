@@ -1,1 +1,1 @@
-let test:Nat->Nat = fun (x:Nat) -> 2
+[0;35;3mlet[0m test [0;35;3m=[0m [0;32mfun[0m (x : [0;94;3mNat[0m) [0;32m->[0m [0;91m2[0m
