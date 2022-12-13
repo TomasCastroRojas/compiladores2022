@@ -1,0 +1,4 @@
+[0;35;3mlet[0m f [0;35;3m=[0m [0;32mfun[0m (x : [0;94;3mNat[0m) [0;32m->[0m x
+[0;35;3mlet[0m loop [0;35;3m=[0m [0;32mfix[0m (loop0 : [0;94;3mNat[0m [0;34m->[0m [0;94;3mNat[0m) (n : [0;94;3mNat[0m) [0;32m->[0m
+  [0;32mlet[0m (_ : [0;94;3mNat[0m) [0;32m=[0m [0;32mprint[0m "vuelta " n [0;32min[0m [0;32mifz[0m n [0;32mthen[0m [0;91m0[0m [0;32melse[0m f (loop0 (n [0;32m-[0m [0;91m1[0m))
+[0;35;3mlet[0m main [0;35;3m=[0m [0;32mprint[0m "" (loop [0;91m100[0m)

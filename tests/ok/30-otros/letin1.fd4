@@ -8,4 +8,4 @@ let r : Nat = 1 + (let _ : Nat = 2 in 3)
 let k : Nat = 1 + (let _ : Nat = 2 in 3)
 
 let rr : Nat = print "r" r
-let kk : Nat = print "k" r
+let kk : Nat = print "k" k
