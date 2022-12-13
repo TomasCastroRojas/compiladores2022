@@ -3,45 +3,61 @@ module Opt where
 import MonadFD4
 import Lang
 import Eval (semOp)
-import Subst (subst, open, close, open2, close2)
+import Subst (subst, open, close, open2, close2, pureTerm, termSize, countBound)
 
 maxOpt :: Int
 maxOpt = 10
 
+maxSize :: Int
+maxSize = 10
+
+maxCalls :: Int
+maxCalls = 5
+
+
 constantFolding :: MonadFD4 m => TTerm -> m TTerm
+constantFolding v@(V (p, _) (Global n)) = do
+  t <- lookupDecl n
+  case t of
+    Nothing -> failPosFD4 p "Global no encontrado"
+    Just c@(Const _ (CNat x)) -> return c
+    Just _ -> return v
 constantFolding (BinaryOp i Add t (Const i'' (CNat 0))) = constantFolding t
 constantFolding (BinaryOp i Add (Const i' (CNat 0)) t) = constantFolding t
 constantFolding (BinaryOp i Sub t (Const i'' (CNat 0))) = constantFolding t
-constantFolding (BinaryOp i Sub (Const i' (CNat 0)) t) =
-    return $ Const i (CNat 0)
-constantFolding (BinaryOp i op (Const i' (CNat n)) (Const i'' (CNat m))) =
-    return $ Const i (CNat (semOp op n m))
+constantFolding (BinaryOp i Sub (Const i' (CNat 0)) t) = return $ Const i (CNat 0)
+constantFolding (BinaryOp i op (Const i' (CNat n)) (Const i'' (CNat m))) = return $ Const i (CNat (semOp op n m))
+constantFolding (IfZ i (Const i' (CNat 0)) t1 t2) = constantFolding t1
+constantFolding (IfZ i (Const i' (CNat n)) t1 t2) = constantFolding t2
+constantFolding (Let info name ty nat@(Const i (CNat n)) scope) = return $ subst nat scope
 constantFolding t = return t
 
-constantPropagation :: MonadFD4 m => TTerm -> m TTerm
-constantPropagation (Let info name ty nat@(Const i (CNat n)) scope) =
-    return $ subst nat scope
-constantPropagation t = return t
-
-
-deadCode :: MonadFD4 m => TTerm -> m TTerm
-deadCode (IfZ i (Const i' (CNat 0)) t1 t2) = deadCode t1
-deadCode (IfZ i (Const i' (CNat n)) t1 t2) = deadCode t2
-deadCode t = return t
 
 betaRedex :: MonadFD4 m => TTerm -> m TTerm
+betaRedex  (App i f@(Lam i' name ty scope) val@(Const _ _)) | pureTerm f = return $ subst val scope
 betaRedex  (App i (Lam i' name ty scope) t) = return (Let i name ty t scope)
 betaRedex t = return t
 
 inline :: MonadFD4 m => TTerm -> m TTerm
-inline (Let i name ty t@(Lam i' name' ty' scope) body) = return $ subst t body 
+inline (Let i name ty def body@(Sc1 t)) 
+    | calls == 1 || (pureTerm def && termSize def < maxSize && calls < maxCalls) 
+    = return $ subst def body
+    where calls = countBound 0 t      
 inline t = return t
 
-
+-- Desplaza las constantes a la derecha, habilita constant folding
+shiftConst :: MonadFD4 m => TTerm -> m TTerm
+shiftConst (BinaryOp i Add (BinaryOp i' Add t (Const i0 (CNat n))) (Const i1 (CNat m))) = return $ BinaryOp i Add t (Const i0 (CNat (n+m)))
+shiftConst (BinaryOp i Add (BinaryOp i' Add (Const i0 (CNat n)) t) (Const i1 (CNat m))) = return $ BinaryOp i Add t (Const i0 (CNat (n+m)))
+shiftConst (BinaryOp i Add (BinaryOp i' Add t num@(Const _ _)) t') = return $ BinaryOp i Add (BinaryOp i' Add t t') num
+shiftConst (BinaryOp i Add (BinaryOp i' Add num@(Const _ _) t) t') = return $ BinaryOp i Add (BinaryOp i' Add t t') num
+shiftConst (BinaryOp i Add t (BinaryOp i' Add num@(Const _ _) t')) = return $ BinaryOp i Add (BinaryOp i' Add t t') num
+shiftConst (BinaryOp i Add t (BinaryOp i' Add t' num@(Const _ _))) = return $ BinaryOp i Add (BinaryOp i' Add t t') num
+shiftConst t = return t
 
 visit :: MonadFD4 m => (TTerm -> m TTerm) -> TTerm -> [Name] -> m TTerm
-visit f v@(V i var) ns = f v
-visit f (Const i c) ns = return $ Const i c
+visit f v@(V _ _) ns = f v
+visit f c@(Const _ _) ns = return c
 
 visit f (Lam i name ty t) ns = do
     let n' = freshen ns name
@@ -81,25 +97,9 @@ visit f (Let i n ty def t) ns = do
     body' <- visit f (open n' t) (n':ns)
     f (Let i n ty def' (close n' body'))
 
-{-
-TODO >> Abstraccion de recorrido del AST, evita reescribir todos los casos de TTerm en cada funcion
-
-
-visit :: Monad m => (TTerm -> m TTerm) -> TTerm -> m TTerm
-visit f (App i l r) = do
-    l' <- visit f l
-    r' <- visit f r
-    f (App i l' r')
-
-
-br = visit br1 where
-    br1 (App (Lam ...) v) = algo 
-    br1 t = return t
--}
-
 optimizeN :: MonadFD4 m => Int -> TTerm -> m TTerm
 optimizeN 0 t = return t
-optimizeN n t = visit (constantPropagation >=> constantFolding >=> deadCode >=> betaRedex >=> inline) t [] >>= optimizeN (n-1)
+optimizeN n t = visit (shiftConst >=> constantFolding >=> betaRedex >=> inline) t [] >>= optimizeN (n-1)
 
 optimize :: MonadFD4 m => Decl TTerm -> m (Decl TTerm)
 optimize (Decl p n ty tt) = Decl p n ty <$> optimizeN maxOpt tt

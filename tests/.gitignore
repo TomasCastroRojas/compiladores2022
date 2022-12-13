@@ -1,5 +1,5 @@
 *.c
-
+*.bc
 *.check*
 *.actual_out*
 *.actual_opt_out
