@@ -139,4 +139,41 @@ varChangerGlobal local t = go 0 t where
   go n (Let p v vty m (Sc1 o)) = Let p v vty (go n m) (Sc1 (go (n+1) o))
 
 
- 
+-- Determina el tamaño de un termino
+termSize :: TTerm -> Int
+termSize (V x0 var) = 1
+termSize (Const x0 co) = 1
+termSize (Lam x0 s ty (Sc1 t)) = 1 + termSize t
+termSize (App x0 t t') = 1 + termSize t + termSize t'
+termSize (Print x0 s t) = 1 + termSize t
+termSize (BinaryOp x0 bo t t') = 1 + termSize t + termSize t'
+termSize (Fix x0 s ty str ty' (Sc2 t)) = 1 + termSize t
+termSize (IfZ x0 t t' t'') = 1 + termSize t + termSize t' + termSize t''
+termSize (Let x0 s ty t (Sc1 t')) = 1 + termSize t + termSize t'
+
+-- Verifica que el termino no tenga efectos
+pureTerm :: TTerm -> Bool
+pureTerm (V x0 (Bound n)) = True
+pureTerm (V x0 (Free s)) = True
+pureTerm (V x0 (Global s)) = False
+pureTerm (Const x0 co) = True
+pureTerm (Lam x0 s ty (Sc1 t)) = pureTerm t
+pureTerm (App x0 t t') = pureTerm t && pureTerm t'
+pureTerm (Print x0 s tm') = False
+pureTerm (BinaryOp x0 bo t t') = pureTerm t && pureTerm t'
+pureTerm (Fix x0 s ty str ty' (Sc2 t)) = pureTerm t
+pureTerm (IfZ x0 t t' t'') = pureTerm t && pureTerm t' && pureTerm t''
+pureTerm (Let x0 s ty t (Sc1 t')) = pureTerm t && pureTerm t'
+
+-- Cuenta la cantidad de apariciones de una variable ligada
+countBound :: Int -> Tm info Var -> Int
+countBound n (V p (Bound i)) = if i == n then 1 else 0
+countBound n (V _ _) = 0
+countBound n (Const _ _) = 0
+countBound n (Lam p y ty (Sc1 t)) = countBound (n+1) t
+countBound n (App p t t')   = countBound n t + countBound n t
+countBound n (Fix p f fty x xty (Sc2 t)) = countBound (n+2) t
+countBound n (IfZ p c t e) = countBound n c + countBound n t + countBound n e
+countBound n (Print p str t) = countBound n t
+countBound n (BinaryOp p op t u) = countBound n t + countBound n u
+countBound n (Let p v vty m (Sc1 t)) = countBound n m + countBound (n+1) t
