@@ -16,6 +16,12 @@ maxCalls = 5
 
 
 constantFolding :: MonadFD4 m => TTerm -> m TTerm
+constantFolding v@(V (p, _) (Global n)) = do
+  t <- lookupDecl n
+  case t of
+    Nothing -> failPosFD4 p "Global no encontrado"
+    Just c@(Const _ (CNat x)) -> return c
+    Just _ -> return v
 constantFolding (BinaryOp i Add t (Const i'' (CNat 0))) = constantFolding t
 constantFolding (BinaryOp i Add (Const i' (CNat 0)) t) = constantFolding t
 constantFolding (BinaryOp i Sub t (Const i'' (CNat 0))) = constantFolding t
@@ -33,8 +39,10 @@ betaRedex  (App i (Lam i' name ty scope) t) = return (Let i name ty t scope)
 betaRedex t = return t
 
 inline :: MonadFD4 m => TTerm -> m TTerm
-inline (Let i name ty def body@(Sc1 t)) | calls == 1 || (pureTerm def && termSize def < maxSize && calls < maxCalls) = return $ subst def body
-                                                                                                           where calls = countBound 0 t      
+inline (Let i name ty def body@(Sc1 t)) 
+    | calls == 1 || (pureTerm def && termSize def < maxSize && calls < maxCalls) 
+    = return $ subst def body
+    where calls = countBound 0 t      
 inline t = return t
 
 -- Desplaza las constantes a la derecha, habilita constant folding
@@ -48,8 +56,8 @@ shiftConst (BinaryOp i Add t (BinaryOp i' Add t' num@(Const _ _))) = return $ Bi
 shiftConst t = return t
 
 visit :: MonadFD4 m => (TTerm -> m TTerm) -> TTerm -> [Name] -> m TTerm
-visit f v@(V i var) ns = f v
-visit f (Const i c) ns = return $ Const i c
+visit f v@(V _ _) ns = f v
+visit f c@(Const _ _) ns = return c
 
 visit f (Lam i name ty t) ns = do
     let n' = freshen ns name
