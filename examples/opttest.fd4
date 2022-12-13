@@ -6,3 +6,13 @@ let ff:Nat =
   let func (x:Nat):Nat = x + 1 in func 10
 
 let f (x:Nat):Nat = x + 10
+
+# Reduce las expresiones constantes
+let ans1:Nat = let suma (x:Nat)(y:Nat):Nat = x + y in
+              let resta (m:Nat)(n:Nat):Nat = (m - m) - (n + n) in
+              print "" (suma (resta 4 4) (suma (resta 4 3) (suma 1 2)))
+
+# Queda colgado los argumentos no constantes
+let ans2:Nat = let suma (x:Nat)(y:Nat):Nat = x + y in
+              let resta (m:Nat)(n:Nat):Nat = (m - m) - (n + n) in
+              print "" (suma (resta (print 4) (print 3)) (suma (resta 4 3) (suma 1 2)))
