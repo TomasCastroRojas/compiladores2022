@@ -4,7 +4,6 @@ import MonadFD4
 import Lang
 import Eval (semOp)
 import Subst (subst, open, close, open2, close2, pureTerm, termSize, countBound)
-import PPrint (pp)
 
 maxOpt :: Int
 maxOpt = 10
