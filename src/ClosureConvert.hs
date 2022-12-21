@@ -12,7 +12,7 @@ varName :: MonadFD4 m => Name -> StateT Int (WriterT [IrDecl] m) Name
 varName prefix = do
     n <- get
     put (n+1)
-    return (prefix ++ show n)
+    return (prefix ++ "-" ++  show n)
 
 var2ir :: Var -> Ir
 var2ir (Free name) = IrVar name
