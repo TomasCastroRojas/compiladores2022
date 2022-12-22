@@ -14,7 +14,7 @@ maxSize = 10
 maxCalls :: Int
 maxCalls = 5
 
-
+-- No recomendable que sea recursiva
 constantFolding :: MonadFD4 m => TTerm -> m TTerm
 constantFolding v@(V (p, _) (Global n)) = do
   t <- lookupDecl n
@@ -32,7 +32,7 @@ constantFolding (IfZ i (Const i' (CNat n)) t1 t2) = constantFolding t2
 constantFolding (Let info name ty nat@(Const i (CNat n)) scope) = return $ subst nat scope
 constantFolding t = return t
 
-
+-- El primer caso puede ser manejado por inline y no hace falta que sea puro
 betaRedex :: MonadFD4 m => TTerm -> m TTerm
 betaRedex  (App i f@(Lam i' name ty scope) val@(Const _ _)) | pureTerm f = return $ subst val scope
 betaRedex  (App i (Lam i' name ty scope) t) = return (Let i name ty t scope)

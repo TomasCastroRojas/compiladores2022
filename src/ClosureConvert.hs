@@ -112,6 +112,8 @@ closureConvert (App info t1 t2) = do
 runCC :: MonadFD4 m => [Decl TTerm] -> m [IrDecl]
 runCC = runCC' 0
 
+-- Mejor usar mapM y luego correr las monadas una unica vez
+-- Esta haciendo el bind de ambas monadas manualmente
 runCC' :: MonadFD4 m => Int -> [Decl TTerm] -> m [IrDecl]
 runCC' _ [] = return []
 runCC' s list@(dec@(Decl pos name ty body):xs) = do
