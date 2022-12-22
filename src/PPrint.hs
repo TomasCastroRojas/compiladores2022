@@ -11,7 +11,7 @@ Stability   : experimental
 -}
 
 module PPrint (
-    pp, ppu,
+    pp,
     ppTy,
     ppName,
     ppDecl,
@@ -205,14 +205,6 @@ bindings2doc [] = mempty
 bindings2doc [(x, ty)] = binding2doc (x, ty)
 binding2sdoc [(x, ty):tl] =
   parens (sep $ [name2doc x, pretty ":", sty2doc ty] ++ [bindings2doc tl])
-
--- Dummy function para imprimir bien las salidas la maquina CEK
-ppu :: MonadFD4 m => TTerm -> m String
--- Uncomment to use the Show instance for Term
-{- pp = show -}
-ppu t = do
-       gdecl <- gets glb
-       return (render . unAnnotate $ t2doc False $ openAll fst (map declName gdecl) t)
 
 -- | Pretty printing de términos (String)
 pp :: MonadFD4 m => TTerm -> m String
