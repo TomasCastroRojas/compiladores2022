@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-module Opt where
+module Opt (optimize) where
 import MonadFD4
 import Lang
 import Eval (semOp)
@@ -14,7 +14,6 @@ maxSize = 10
 maxCalls :: Int
 maxCalls = 5
 
--- No recomendable que sea recursiva
 constantFolding :: MonadFD4 m => TTerm -> m TTerm
 constantFolding v@(V (p, _) (Global n)) = do
   t <- lookupDecl n
@@ -22,19 +21,17 @@ constantFolding v@(V (p, _) (Global n)) = do
     Nothing -> failPosFD4 p "Global no encontrado"
     Just c@(Const _ (CNat x)) -> return c
     Just _ -> return v
-constantFolding (BinaryOp i Add t (Const i'' (CNat 0))) = constantFolding t
-constantFolding (BinaryOp i Add (Const i' (CNat 0)) t) = constantFolding t
-constantFolding (BinaryOp i Sub t (Const i'' (CNat 0))) = constantFolding t
+constantFolding (BinaryOp i Add t (Const i'' (CNat 0))) = return t
+constantFolding (BinaryOp i Add (Const i' (CNat 0)) t) = return t
+constantFolding (BinaryOp i Sub t (Const i'' (CNat 0))) = return t
 constantFolding (BinaryOp i Sub (Const i' (CNat 0)) t) = return $ Const i (CNat 0)
 constantFolding (BinaryOp i op (Const i' (CNat n)) (Const i'' (CNat m))) = return $ Const i (CNat (semOp op n m))
-constantFolding (IfZ i (Const i' (CNat 0)) t1 t2) = constantFolding t1
-constantFolding (IfZ i (Const i' (CNat n)) t1 t2) = constantFolding t2
+constantFolding (IfZ i (Const i' (CNat 0)) t1 t2) = return t1
+constantFolding (IfZ i (Const i' (CNat n)) t1 t2) = return t2
 constantFolding (Let info name ty nat@(Const i (CNat n)) scope) = return $ subst nat scope
 constantFolding t = return t
 
--- El primer caso puede ser manejado por inline y no hace falta que sea puro
 betaRedex :: MonadFD4 m => TTerm -> m TTerm
-betaRedex  (App i f@(Lam i' name ty scope) val@(Const _ _)) | pureTerm f = return $ subst val scope
 betaRedex  (App i (Lam i' name ty scope) t) = return (Let i name ty t scope)
 betaRedex t = return t
 
