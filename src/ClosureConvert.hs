@@ -1,18 +1,20 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use second" #-}
-module ClosureConvert where
+module ClosureConvert
+    (runCC, ccWrite)
+where
 import IR
 import Lang
 import MonadFD4
 import Subst
 import Control.Monad.Writer
 
-varName :: MonadFD4 m => Name -> StateT Int (WriterT [IrDecl] m) Name
+varName :: Name -> StateT Int (Writer [IrDecl]) Name
 varName prefix = do
     n <- get
     put (n+1)
-    return (prefix ++ "-" ++  show n)
+    return (prefix ++ "_" ++  show n)
 
 var2ir :: Var -> Ir
 var2ir (Free name) = IrVar name
@@ -42,7 +44,7 @@ args2vars fv t closure =
             (zip fv [1..])
 
 
-closureConvert :: MonadFD4 m => TTerm -> StateT Int (WriterT [IrDecl] m) Ir
+closureConvert :: TTerm -> StateT Int (Writer [IrDecl]) Ir
 closureConvert (V info var) = return $ var2ir var
 closureConvert (Const info c) = return $ IrConst c
 closureConvert (IfZ info c t f) = do
@@ -109,15 +111,12 @@ closureConvert (App info t1 t2) = do
     return $ IrLet fun IrClo clos $ IrCall (IrAccess (IrVar fun) IrClo 0) [IrVar fun, t2'] IrInt
 
 
-runCC :: MonadFD4 m => [Decl TTerm] -> m [IrDecl]
-runCC = runCC' 0
+runCC :: [Decl TTerm] -> IrDecls
+runCC decls = let ((ir, i), irs) = runWriter $ runStateT (mapM ccDecl decls) 0
+              in IrDecls (irs ++ ir)
 
--- Mejor usar mapM y luego correr las monadas una unica vez
--- Esta haciendo el bind de ambas monadas manualmente
-runCC' :: MonadFD4 m => Int -> [Decl TTerm] -> m [IrDecl]
-runCC' _ [] = return []
-runCC' s list@(dec@(Decl pos name ty body):xs) = do
-    ((ir, i), ls) <- runWriterT $ runStateT (closureConvert body) s
-    let newDecl = IrVal name (ty2IrTy ty) ir
-    tl <- runCC' (i + 1) xs
-    return $ newDecl : ls ++ tl
+ccDecl :: Decl TTerm -> StateT Int (Writer [IrDecl]) IrDecl
+ccDecl (Decl _ name ty t) = IrVal name (ty2IrTy ty) <$> closureConvert t
+
+ccWrite :: String -> FilePath -> IO ()
+ccWrite p filename = writeFile filename p
