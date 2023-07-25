@@ -22,7 +22,7 @@ import Data.List (nub, isPrefixOf, intercalate )
 import Data.Char ( isSpace )
 import Control.Exception ( catch , IOException )
 import System.IO ( hPrint, stderr, hPutStrLn )
-import Data.Maybe ( fromMaybe )
+import Data.Maybe ( fromMaybe, catMaybes )
 
 import System.Exit ( exitWith, ExitCode(ExitFailure) )
 import Options.Applicative
@@ -33,15 +33,15 @@ import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Elab ( elab, elabDecl, elabTy )
 import Eval ( eval )
-import PPrint ( pp , ppTy, ppDecl )
+import PPrint ( pp , ppTy, ppDecl)
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 import CEK (runCEK, val2tterm)
-import Bytecompile
+import Bytecompile (bcRead, bcWrite, showBC, runBC, bytecompileModule)
 import Opt (optimize)
-import ClosureConvert (runCC)
+import ClosureConvert (runCC, ccWrite)
 import C (ir2C)
-import IR
+import System.FilePath (dropExtension)
 
 prompt :: String
 prompt = "FD4> "
@@ -79,12 +79,8 @@ main = execParser opts >>= go
     go :: (Mode,Bool,[FilePath]) -> IO ()
     go (Interactive,opt,files) =
               runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
-    go (Bytecompile, opt, files) =
-              runOrFail (Conf opt Bytecompile) $ mapM_ bytecompile files
     go (RunVM, opt, files) =
               runOrFail (Conf opt RunVM) $ mapM_ runVM files
-    go (CC, opt, files) = 
-              runOrFail (Conf opt CC) $ mapM_ compileC files
     go (m,opt, files) =
               runOrFail (Conf opt m) $ mapM_ compileFile files
 
@@ -116,44 +112,10 @@ repl args = do
                        b <- lift $ catchErrors $ handleCommand c
                        maybe loop (`when` loop) b
 
-
-bytecompile :: MonadFD4 m => FilePath -> m ()
-bytecompile f = do
-  decls <- loadFile f
-  dec <- mapM handle decls
-  bc <- bytecompileModule (concat dec)
-  printFD4 (showBC bc) -- Debugging
-  liftIO $ bcWrite bc (takeWhile (/= '.') f ++ ".bc")
-  return ()
-
-handle :: MonadFD4 m => SDecl STerm -> m [Decl TTerm]
-handle d = case d of
-              SDecl {} -> do
-                d' <- elabDecl d
-                td <- tcDecl d'
-                opt <- getOpt
-                dec <- if opt then optimize td else return td
-                addDecl dec
-                return [dec]
-              SDeclSTy p n sty -> do
-                ty <- elabTy sty
-                addTypeSin (n, ty)
-                return []
-
 runVM :: MonadFD4 m => FilePath -> m ()
 runVM f = do
   bc <- liftIO $ bcRead f
   runBC bc
-
-compileC :: MonadFD4 m => FilePath -> m()
-compileC f = do
-  decls <- loadFile f
-  dec <- mapM handle decls
-  cc <- runCC (concat dec)
-  let prog = ir2C (IrDecls cc)
-  printFD4 prog
-  liftIO $  writeFile (takeWhile (/= '.') f ++ ".c") prog
-  return ()
 
 loadFile ::  MonadFD4 m => FilePath -> m [SDecl STerm]
 loadFile f = do
@@ -165,13 +127,24 @@ loadFile f = do
     setLastFile filename
     parseIO filename program x
 
-compileFile ::  MonadFD4 m => FilePath -> m ()
-compileFile f = do
+compileFile :: MonadFD4 m => FilePath -> m ()
+compileFile f = do 
     i <- getInter
     setInter False
-    when i $ printFD4 ("Abriendo "++f++"...")
+    when i $ printFD4 ("Abriendo/Compilando" ++f++"...")
     decls <- loadFile f
-    mapM_ handleDecl decls
+    decs <- catMaybes <$> mapM handleDecl decls
+    m <- getMode
+    case m of
+      Bytecompile -> do
+        bcode <- bytecompileModule decs
+        printFD4 $ showBC bcode
+        liftIO $ bcWrite bcode (dropExtension f ++ ".bc")
+      CC -> do
+        let prog = (ir2C . runCC) decs
+        printFD4 prog
+        liftIO $ ccWrite prog (dropExtension f ++ ".c")
+      _ -> return ()
     setInter i
 
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
@@ -179,61 +152,47 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-handleDecl ::  MonadFD4 m => SDecl STerm -> m ()
-handleDecl d = do
-        m <- getMode
-        case m of
-          CEK -> do
-            case d of
-              SDecl {} -> do
-                d' <- elabDecl d
-                td <- tcDecl d'
-                opt <- getOpt
-                (Decl p n ty tt) <- if opt then optimize td else return td
-                tcek <- runCEK tt
-                addDecl (Decl p n ty (val2tterm tcek))
-              SDeclSTy p n sty -> do
-                ty <- elabTy sty
-                addTypeSin (n, ty)
-          Interactive -> do
-            case d of
-              SDecl {} -> do
-                d' <- elabDecl d
-                td <- tcDecl d'
-                opt <- getOpt
-                (Decl p n ty tt) <- if opt then optimize td else return td
-                te <- eval tt
-                addDecl (Decl p n ty te)
-              SDeclSTy p n sty -> do
-                ty <- elabTy sty
-                addTypeSin (n, ty)
-          Typecheck -> do
-            f <- getLastFile
-            -- printFD4 ("Chequeando tipos de "++f)
-            case d of
-              SDecl {} -> do
-                d' <- elabDecl d
-                td <- tcDecl d'
-                opt <- getOpt
-                td' <- if opt then optimize td else return td
-                addDecl td'
-                ppterm <- ppDecl td'
-                printFD4 ppterm
-              SDeclSTy p n sty -> do
-                ty <- elabTy sty
-                addTypeSin (n, ty)
-          Eval -> do
-            case d of
-              SDecl {} -> do
-                d' <- elabDecl d
-                td <- tcDecl d'
-                opt <- getOpt
-                (Decl p n ty tt) <- if opt then optimize td else return td
-                te <- eval tt
-                addDecl (Decl p n ty te)
-              SDeclSTy p n sty -> do
-                ty <- elabTy sty
-                addTypeSin (n, ty)
+handleAdd :: MonadFD4 m => (TTerm -> m TTerm) -> SDecl STerm -> m (Maybe (Decl TTerm))
+handleAdd evalF d@SDecl {} = do
+      elabbed <- elabDecl d
+      decl@(Decl p x ty tt) <- tcDecl elabbed
+      opt <- getOpt
+      (Decl p' x' ty' tt') <- if opt then optimize decl else return decl
+      te <- evalF tt'
+      addDecl (Decl p x ty te)
+      return $ Just $ Decl p x ty te
+handleAdd _ (SDeclSTy pos s st) = do
+      st' <- elabTy st
+      addTypeSin (s, st')
+      return Nothing
+
+handleDecl :: MonadFD4 m => SDecl STerm -> m (Maybe (Decl TTerm))
+handleDecl d = do 
+    m <- getMode
+    case m of
+      Interactive -> handleAdd eval d
+      Eval -> handleAdd eval d
+      CEK -> handleAdd (\tt -> do {tcek <- runCEK tt; return $ val2tterm tcek}) d
+      Bytecompile -> handleAdd return d
+      CC -> handleAdd return d
+      RunVM -> return Nothing
+      Typecheck -> do
+        f <- getLastFile
+        -- printFD4 ("Chequenado tipos de "++f)
+        case d of
+            SDecl {} -> do
+              d' <- elabDecl d
+              td <- tcDecl d'
+              opt <- getOpt
+              td' <- if opt then optimize td else return td
+              addDecl td'
+              ppterm <- ppDecl td'
+              printFD4 ppterm
+              return Nothing
+            SDeclSTy p n sty -> do
+              ty <- elabTy sty
+              addTypeSin (n, ty)
+              return Nothing
 
 
 data Command = Compile CompileForm
@@ -315,7 +274,7 @@ compilePhrase ::  MonadFD4 m => String -> m ()
 compilePhrase x = do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of
-      Left d  -> handleDecl d
+      Left d  -> void $ handleDecl d
       Right t -> handleTerm t
 
 handleTerm ::  MonadFD4 m => STerm -> m ()
