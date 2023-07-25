@@ -111,12 +111,14 @@ showBC = intercalate "; " . showOps
 
 bcc :: MonadFD4 m => TTerm -> m Bytecode
 bcc (Const info (CNat n)) = return [CONST, n]
+
 bcc (App info t1 t2) = do
   bc1 <- bcc t1
   bc2 <- bcc t2
   return $ bc1 ++ bc2 ++ [CALL]
 
 bcc (V info (Bound i)) = return [ACCESS,i]
+
 bcc (V info (Global name)) = do
   def <- lookupDecl name
   case def of
@@ -140,10 +142,11 @@ bcc (Let _ _ _ def (Sc1 term)) = do
   return $ bc1 ++ [SHIFT] ++ bc2 ++ [DROP]
 
 bcc (Lam _ _ _ (Sc1 tterm)) = do
-  bc_body <- tcc tterm
+  bc_body <- bccTail tterm
   return $ [FUNCTION, length bc_body] ++ bc_body
+
 bcc (Fix info _ _ _ _ (Sc2 term)) = do
-  bc_body <- tcc term
+  bc_body <- bccTail term
   return $ [FUNCTION, length bc_body] ++ bc_body ++ [FIX]
 
 bcc (Print _ str term) = do
@@ -161,27 +164,32 @@ bcc (IfZ info c t f) = do
   return $ bcC ++ [CJUMP, lenTrue + 2] ++ bcT ++ [JUMP, lenFalse] ++ bcF
 
 
-tcc :: MonadFD4 m => TTerm -> m Bytecode
-tcc (App _ t1 t2) = do
-  t1' <- bcc t1
-  t2' <- bcc t2
-  return $ t1' ++ t2' ++ [TAILCALL]
+bccGeneral :: MonadFD4 m => Bytecode -> Bytecode -> TTerm -> m Bytecode
+bccGeneral call end (App _ t1 t2) = do
+  bt1 <- bcc t1
+  bt2 <- bcc t2
+  return $ bt1 ++ bt2 ++ call
 
-tcc (IfZ _ tc tt tf) = do
-  c <- bcc tc
-  tt' <- tcc tt
-  tf' <- tcc tf
-  let lenTrue = length tt'
-  return $ c ++ [CJUMP, lenTrue] ++ tt' ++ tf'
+bccGeneral call end (IfZ _ tc tt tf) = do
+  bcond <- bcc tc
+  bthen <- bccGeneral call end tt
+  belse <- bccGeneral call end tf
+  return $ bcond ++ [CJUMP, length bthen] ++ bthen ++ belse
 
-tcc (Let _ _ _ def (Sc1 term)) = do
-  def' <- bcc def
-  term' <- tcc term
-  return $ def' ++ [SHIFT] ++ term'
+bccGeneral call end (Let _ _ _ def (Sc1 body)) = do
+  bdef <- bcc def
+  bbody <- bccGeneral call end body
+  return $ bdef ++ [SHIFT] ++ bbody
 
-tcc term = do
-  t' <- bcc term
-  return $ t' ++ [RETURN]
+bccGeneral call end t = do
+  bt <- bcc t
+  return $ bt ++ end
+
+bccTail :: MonadFD4 m => TTerm -> m Bytecode
+bccTail = bccGeneral [TAILCALL] [RETURN]
+
+bccStop :: MonadFD4 m => TTerm -> m Bytecode
+bccStop = bccGeneral [CALL, STOP] [STOP]
 
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
@@ -200,23 +208,9 @@ openModule []                         = error "Modulo vacio"
 openModule [Decl p nm ty body]        = body
 openModule (Decl p nm ty body: decls) = Let (p, getTy body) nm ty body (close nm $ glb2free nm $ openModule decls)
 
--- TODO: Funcion para compilar el termino evitando los DROPS al final
---       Seria igual a tcc pero sin usar RETURN sino STOP
--- Esta funcion es muy similar a tcc en los casos del IfZ y Let
-
-tss :: MonadFD4 m => TTerm -> m Bytecode
-tss (IfZ _ c tt tf) = do c' <- bcc c  
-                         tt' <- tss tt
-                         tf' <- tss tf
-                         return (c' ++ [CJUMP] ++ [length tt'] ++ tt' ++ tf')
-tss (Let _ _ _ def (Sc1 term)) = do def' <- bcc def
-                                    term' <- tss term
-                                    return (def' ++ [SHIFT] ++ term')
-tss t = do t' <- bcc t
-           return (t' ++ [STOP])
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
-bytecompileModule = tss <$> openModule
+bytecompileModule = bccStop <$> openModule
 
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
@@ -232,7 +226,7 @@ bcRead :: FilePath -> IO Bytecode
 bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 
 runBC :: MonadFD4 m => Bytecode -> m ()
-runBC bc = do execVM bc [] []
+runBC bc = execVM bc [] []
 
 execVM :: MonadFD4 m => Bytecode -> [Val] -> [Val] -> m ()
 execVM [] _ _ = error "Codigo vacio"
